@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { StatusBanner } from "./StatusBanner";
-import { CommandPalette } from "./CommandPalette";
 import { useApp } from "../context/AppContext";
 import { useTranslation } from "react-i18next";
 import { useDragWindow } from "../hooks/useDragWindow";
@@ -11,7 +10,7 @@ import { cn } from "../utils";
 
 export function Layout() {
   const { t } = useTranslation();
-  const { appError, refreshAppData } = useApp();
+  const { appError, refreshAll } = useApp();
   const onDrag = useDragWindow();
   const navigate = useNavigate();
 
@@ -28,12 +27,12 @@ export function Layout() {
         const target = e.target as HTMLElement;
         if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
         e.preventDefault();
-        refreshAppData();
+        refreshAll();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [navigate, refreshAppData]);
+  }, [navigate, refreshAll]);
 
   return (
     <div className="relative flex h-full w-full overflow-hidden bg-background text-primary">
@@ -56,7 +55,7 @@ export function Layout() {
                 title={t("common.dataOutOfDate")}
                 description={appError}
                 actionLabel={t("common.retry")}
-                onAction={refreshAppData}
+                onAction={refreshAll}
                 tone="danger"
               />
             ) : null}
@@ -64,7 +63,6 @@ export function Layout() {
           </div>
         </div>
       </div>
-      <CommandPalette />
     </div>
   );
 }

@@ -399,8 +399,8 @@ pub struct InstallRequest {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RemoveRequest {
-    /// Folder slug as shown by `list_skills`.
-    pub name: String,
+    /// Folder slugs as shown by `list_skills` (the CLI accepts several).
+    pub names: Vec<String>,
     pub scope: ScopeArg,
     /// None = remove for every agent; Some(keys) = scoped removal.
     pub agents: Option<Vec<String>>,
@@ -706,7 +706,12 @@ pub async fn remove_skill(
     app: tauri::AppHandle,
     request: RemoveRequest,
 ) -> Result<OperationResult, AppError> {
-    validate_argv_value(&request.name, "skill name")?;
+    if request.names.is_empty() {
+        return Err(AppError::invalid_input("no skill selected"));
+    }
+    for name in &request.names {
+        validate_argv_value(name, "skill name")?;
+    }
     let scope = request.scope.clone().into_scope()?;
     let global = scope.is_global();
     if let Some(agents) = &request.agents {
@@ -719,7 +724,9 @@ pub async fn remove_skill(
 
     let before = snapshot_names(&scope);
 
-    let mut args = vec!["remove".to_string(), request.name.clone(), "-y".into()];
+    let mut args = vec!["remove".to_string()];
+    args.extend(request.names.iter().cloned());
+    args.push("-y".into());
     if global {
         args.push("-g".into());
     }
@@ -741,44 +748,61 @@ pub async fn remove_skill(
     // Verify: full removal must be gone from the snapshot; agent-scoped
     // removal keeps the skill (shared visibility rules apply).
     let after = snapshot_names(&scope);
-    let gone = !after.contains(&request.name) && !before.is_empty();
+    let requested: Vec<String> = request
+        .names
+        .iter()
+        .map(|n| {
+            before
+                .iter()
+                .find(|b| b.eq_ignore_ascii_case(n))
+                .cloned()
+                .unwrap_or_else(|| n.clone())
+        })
+        .collect();
+    let gone = requested
+        .iter()
+        .filter(|n| !after.contains(*n))
+        .cloned()
+        .collect::<Vec<_>>();
+    let display_names = requested.join(", ");
     let message = if request.agents.is_some() {
-        format!(
-            "Removed the deployment for the selected agent(s). Note: agents that read \
-             the shared .agents/skills directory may still see this skill."
-        )
-    } else if gone || before.is_empty() {
-        format!("Removed {}.", request.name)
+        "Removed the deployment for the selected agent(s); agents that read the \
+         shared .agents/skills directory may still see the skill."
+            .to_string()
     } else if outcome.success() {
-        format!(
-            "The CLI reported success, but {} is still present on disk. The refreshed \
-             list shows the current state.",
-            request.name
-        )
+        if gone.len() == requested.len() || before.is_empty() {
+            format!("Removed {display_names}.")
+        } else {
+            format!(
+                "The CLI reported success, but some skills are still present on disk. \
+                 The refreshed list shows the current state."
+            )
+        }
     } else {
-        format!("Removal of {} failed.", request.name)
+        format!("Removal of {display_names} failed.")
     };
 
-    let mut items = vec![OperationItem {
-        name: request.name.clone(),
-        status: if outcome.success() { "removed" } else { "failed" }.into(),
-        detail: None,
-    }];
-    if !request.agents.is_some() && outcome.success() && !gone && !before.is_empty() {
-        items[0].status = "unchanged".into();
-        items[0].detail = Some("still present after removal".into());
-    }
+    let items: Vec<OperationItem> = requested
+        .iter()
+        .map(|name| OperationItem {
+            name: name.clone(),
+            status: if after.contains(name) { "unchanged" } else { "removed" }.into(),
+            detail: None,
+        })
+        .collect();
 
     refresh_watch_roots(&state);
     let _ = app.emit(crate::core::change_watcher::SKILLS_CHANGED_EVENT, ());
     let mut result = result_from_outcome(&outcome, message, items);
     if request.agents.is_some() {
-        // Agent-scoped removal succeeds when the CLI exits 0; presence of the
-        // skill itself is expected.
+        // Agent-scoped removal succeeds when the CLI exits 0; the skill
+        // itself is expected to stay.
         result.success = outcome.exit_code == Some(0) && !outcome.timed_out && !outcome.cancelled;
         if result.success {
-            result.items[0].status = "removed".into();
-            result.items[0].detail = None;
+            for item in &mut result.items {
+                item.status = "removed".into();
+                item.detail = None;
+            }
         }
     }
     Ok(result)
@@ -847,6 +871,33 @@ pub async fn cancel_operation(
     op_id: String,
 ) -> Result<bool, AppError> {
     Ok(state.cancel_operation(&op_id))
+}
+
+/// Exit the whole app (frontend close-behavior preference decides when).
+#[tauri::command]
+pub async fn app_exit(app: tauri::AppHandle) -> Result<(), AppError> {
+    crate::quit_app(&app);
+    Ok(())
+}
+
+/// Hide the window to the tray; on macOS also hide the Dock icon so the
+/// tray flow restores cleanly.
+#[tauri::command]
+pub async fn hide_to_tray(
+    app: tauri::AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<(), AppError> {
+    window.hide().map_err(|e| AppError::io(e.to_string()))?;
+    #[cfg(target_os = "macos")]
+    {
+        app.set_dock_visibility(false)
+            .map_err(|e| AppError::io(format!("failed to hide Dock icon: {e}")))?;
+        app.set_activation_policy(tauri::ActivationPolicy::Accessory)
+            .map_err(|e| AppError::io(format!("failed to set Accessory policy: {e}")))?;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------

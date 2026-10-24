@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { CloseActionDialog } from "./CloseActionDialog";
-import * as api from "../lib/tauri";
+import * as api from "../lib/api";
 
+const CLOSE_ACTION_KEY = "skills-manager.closeAction";
+const TRAY_KEY = "skills-manager.trayEnabled";
+
+/** Close-button behavior: exit or hide to tray. Pure UI preference, stored
+ *  in localStorage — no backend settings store. */
 export function CloseActionGuard() {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   useEffect(() => {
     const unlisten = listen("window-close-requested", async () => {
-      const tray = await api.getSettings("show_tray_icon");
-      const trayEnabled = (() => {
-        const normalized = (tray ?? "true").trim().toLowerCase();
-        return !(normalized === "false" || normalized === "0" || normalized === "no" || normalized === "off");
-      })();
+      const trayEnabled = localStorage.getItem(TRAY_KEY) !== "false";
       if (!trayEnabled) {
-        api.appExit();
+        await api.appExit();
         return;
       }
-
-      const pref = await api.getSettings("close_action");
+      const pref = localStorage.getItem(CLOSE_ACTION_KEY);
       if (pref === "close") {
-        api.appExit();
+        await api.appExit();
       } else if (pref === "hide") {
         await api.hideToTray();
       } else {
@@ -34,13 +34,13 @@ export function CloseActionGuard() {
 
   const handleClose = async (remember: boolean) => {
     setDialogOpen(false);
-    if (remember) await api.setSettings("close_action", "close");
-    api.appExit();
+    if (remember) localStorage.setItem(CLOSE_ACTION_KEY, "close");
+    await api.appExit();
   };
 
   const handleHide = async (remember: boolean) => {
     setDialogOpen(false);
-    if (remember) await api.setSettings("close_action", "hide");
+    if (remember) localStorage.setItem(CLOSE_ACTION_KEY, "hide");
     await api.hideToTray();
   };
 

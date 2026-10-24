@@ -636,7 +636,7 @@ mod tests {
 }
 
 #[tauri::command]
-pub async fn app_exit(app: tauri::AppHandle) {
+pub async fn legacy_app_exit(app: tauri::AppHandle) {
     let app_for_main = app.clone();
     if let Err(err) = app.run_on_main_thread(move || crate::quit_app(&app_for_main)) {
         log::error!("Failed to schedule app_exit on main thread: {err}");
@@ -703,7 +703,7 @@ pub async fn update_install_blocker() -> Result<Option<String>, AppError> {
 }
 
 #[tauri::command]
-pub async fn hide_to_tray(
+pub async fn legacy_hide_to_tray(
     app: tauri::AppHandle,
     window: tauri::WebviewWindow,
     store: State<'_, Arc<SkillStore>>,

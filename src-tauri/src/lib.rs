@@ -1021,6 +1021,8 @@ pub fn run() {
             commands::vercel::remove_skill,
             commands::vercel::update_skill,
             commands::vercel::cancel_operation,
+            commands::vercel::app_exit,
+            commands::vercel::hide_to_tray,
             // Tools
             commands::tools::get_tool_status,
             commands::tools::set_tool_enabled,
@@ -1089,9 +1091,7 @@ pub fn run() {
             commands::settings::log_startup_event,
             commands::settings::check_last_panic,
             commands::settings::clear_last_panic,
-            commands::settings::app_exit,
             commands::settings::restart_app,
-            commands::settings::hide_to_tray,
             // Git Backup
             commands::git_backup::git_backup_fetch,
             commands::git_backup::git_backup_status,
