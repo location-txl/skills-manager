@@ -17,7 +17,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{Emitter, State};
+use tauri::{Emitter, Manager, State};
 
 /// Scope as sent by the frontend.
 #[derive(Debug, Clone, Deserialize)]
@@ -898,6 +898,221 @@ pub async fn hide_to_tray(
     #[cfg(not(target_os = "macos"))]
     let _ = app;
     Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Diagnostics
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticInfo {
+    pub app_version: String,
+    pub os: String,
+    pub os_version: String,
+    pub arch: String,
+}
+
+#[tauri::command]
+pub async fn get_diagnostic_info(
+    app: tauri::AppHandle,
+) -> Result<DiagnosticInfo, AppError> {
+    let app_version = app.config().version.clone().unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || {
+        Ok(DiagnosticInfo {
+            app_version,
+            os: std::env::consts::OS.to_string(),
+            os_version: detect_os_version(),
+            arch: std::env::consts::ARCH.to_string(),
+        })
+    })
+    .await?
+}
+
+fn detect_os_version() -> String {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("sw_vers")
+            .arg("-productVersion")
+            .output()
+            .ok()
+            .and_then(|out| {
+                out.status
+                    .success()
+                    .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt as _;
+        let mut cmd = std::process::Command::new("cmd");
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        cmd.args(["/C", "ver"])
+            .output()
+            .ok()
+            .and_then(|out| {
+                out.status
+                    .success()
+                    .then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::fs::read_to_string("/etc/os-release")
+            .ok()
+            .and_then(|content| {
+                content.lines().find_map(|line| {
+                    line.strip_prefix("PRETTY_NAME=")
+                        .map(|rest| rest.trim().trim_matches('"').to_string())
+                })
+            })
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "unknown".to_string())
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        "unknown".to_string()
+    }
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PanicInfo {
+    pub timestamp: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn check_last_panic(app: tauri::AppHandle) -> Result<Option<PanicInfo>, AppError> {
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| AppError::io(format!("failed to resolve log dir: {e}")))?;
+    let panic_path = log_dir.join("last_panic.log");
+    if !panic_path.exists() {
+        return Ok(None);
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        let metadata = std::fs::metadata(&panic_path).map_err(AppError::io)?;
+        let modified = metadata
+            .modified()
+            .map_err(AppError::io)
+            .unwrap_or(std::time::SystemTime::now());
+        let datetime: chrono::DateTime<chrono::Local> = modified.into();
+        let timestamp = datetime.format("%Y-%m-%d %H:%M:%S").to_string();
+        let content = std::fs::read_to_string(&panic_path).unwrap_or_default();
+        let first_lines: Vec<&str> = content.lines().take(3).collect();
+        let message = crate::core::log_sanitize::sanitize(&first_lines.join("\n"));
+        Ok(Some(PanicInfo { timestamp, message }))
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn clear_last_panic(app: tauri::AppHandle) -> Result<(), AppError> {
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| AppError::io(format!("failed to resolve log dir: {e}")))?;
+    let panic_path = log_dir.join("last_panic.log");
+    if panic_path.exists() {
+        std::fs::remove_file(&panic_path).map_err(AppError::io)?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogExcerpt {
+    pub log_path: String,
+    pub excerpt: String,
+    pub line_count: usize,
+    pub has_warnings: bool,
+}
+
+#[tauri::command]
+pub async fn get_recent_log_excerpt(app: tauri::AppHandle) -> Result<LogExcerpt, AppError> {
+    let log_dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|e| AppError::io(format!("failed to resolve log dir: {e}")))?;
+    let app_name = &app.package_info().name;
+    let log_path = log_dir.join(format!("{app_name}.log"));
+
+    tauri::async_runtime::spawn_blocking(move || {
+        let raw = std::fs::read_to_string(&log_path).unwrap_or_default();
+        let display_path = crate::core::log_sanitize::sanitize(&log_path.to_string_lossy());
+
+        if raw.is_empty() {
+            return Ok(LogExcerpt {
+                log_path: display_path,
+                excerpt: "(log file is empty or not yet created)".into(),
+                line_count: 0,
+                has_warnings: false,
+            });
+        }
+
+        let lines: Vec<&str> = raw.lines().collect();
+        let scan_window = 200usize.min(lines.len());
+        let start = lines.len().saturating_sub(scan_window);
+        let window = &lines[start..];
+
+        let alerts: Vec<usize> = window
+            .iter()
+            .enumerate()
+            .filter_map(|(i, line)| {
+                (line.contains(" ERROR ") || line.contains(" WARN ")).then_some(i)
+            })
+            .collect();
+
+        let excerpt_raw = if alerts.is_empty() {
+            let tail_n = 80usize.min(window.len());
+            window[window.len() - tail_n..].join("\n")
+        } else {
+            let context = 10usize;
+            let mut keep = vec![false; window.len()];
+            for &idx in &alerts {
+                let lo = idx.saturating_sub(context);
+                let hi = (idx + context + 1).min(window.len());
+                for k in lo..hi {
+                    keep[k] = true;
+                }
+            }
+            let mut out = String::new();
+            let mut last_kept: Option<usize> = None;
+            for (i, line) in window.iter().enumerate() {
+                if keep[i] {
+                    if let Some(prev) = last_kept {
+                        if i > prev + 1 {
+                            out.push_str("... (gap)\n");
+                        }
+                    }
+                    out.push_str(line);
+                    out.push('\n');
+                    last_kept = Some(i);
+                }
+            }
+            out
+        };
+
+        Ok(LogExcerpt {
+            log_path: display_path,
+            excerpt: crate::core::log_sanitize::sanitize(&excerpt_raw),
+            line_count: lines.len(),
+            has_warnings: !alerts.is_empty(),
+        })
+    })
+    .await?
+}
+
+#[tauri::command]
+pub async fn restart_app(app: tauri::AppHandle) -> Result<(), AppError> {
+    // tauri::process::restart re-execs the current bundle and never returns.
+    tauri::process::restart(&app.env());
 }
 
 // ---------------------------------------------------------------------------

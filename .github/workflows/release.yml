@@ -85,13 +85,6 @@ jobs:
         if: matrix.platform == 'windows-latest'
         run: cargo check --manifest-path src-tauri/Cargo.toml
 
-      - name: Build CLI binary
-        run: >-
-          cargo build --release
-          --manifest-path src-tauri/Cargo.toml
-          --bin skills-manager-cli
-          --target ${{ matrix.target }}
-
       - name: Extract changelog for current version
         id: changelog
         shell: bash
@@ -219,7 +212,6 @@ jobs:
           # converge on one draft rather than creating four.
           releaseDraft: true
           prerelease: false
-          updaterJsonKeepUniversal: true
           args: --target ${{ matrix.target }}
 
       - name: Verify macOS signature and notarization
@@ -261,26 +253,6 @@ jobs:
           BUNDLE_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/macos"
           verify_bundle "built bundle" "$BUNDLE_DIR/skills-manager.app"
 
-          # The .app.tar.gz — not the .app or the .dmg — is what the in-app
-          # updater downloads and unpacks over the running install, so it is the
-          # artifact whose signature and stapled ticket actually decide whether
-          # an updated copy still launches. Verifying only the build directory
-          # would not catch an archive that lost either one.
-          TAR_PATH="$(find "$BUNDLE_DIR" -maxdepth 1 -name '*.app.tar.gz' | head -1)"
-          if [ -z "$TAR_PATH" ]; then
-            echo "No updater archive (*.app.tar.gz) was produced" >&2
-            exit 1
-          fi
-          EXTRACT_DIR="$(mktemp -d)"
-          tar -xzf "$TAR_PATH" -C "$EXTRACT_DIR"
-          EXTRACTED_APP="$(find "$EXTRACT_DIR" -maxdepth 1 -name '*.app' | head -1)"
-          if [ -z "$EXTRACTED_APP" ]; then
-            echo "No .app found inside $TAR_PATH" >&2
-            exit 1
-          fi
-          verify_bundle "updater archive ($(basename "$TAR_PATH"))" "$EXTRACTED_APP"
-          rm -rf "$EXTRACT_DIR"
-
           # `|| true`: with pipefail a missing dmg directory would abort the step
           # with a bare exit 1 and no diagnostic.
           DMG_DIR="src-tauri/target/${{ matrix.target }}/release/bundle/dmg"
@@ -290,195 +262,45 @@ jobs:
             xcrun stapler validate "$DMG_PATH" || echo "Note: .dmg itself is not stapled"
           fi
 
-      - name: Sign and notarize macOS CLI binary
-        if: startsWith(matrix.platform, 'macos')
-        env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-        run: |
-          set -euo pipefail
-          umask 077
-          CERTIFICATE_PATH="$RUNNER_TEMP/cli-signing-certificate.p12"
-          KEYCHAIN_PATH="$RUNNER_TEMP/cli-signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(uuidgen)"
-          ORIGINAL_KEYCHAINS=()
-          while IFS= read -r keychain; do
-            keychain="${keychain#*\"}"
-            keychain="${keychain%\"*}"
-            if [ -n "$keychain" ]; then
-              ORIGINAL_KEYCHAINS+=("$keychain")
-            fi
-          done < <(security list-keychains -d user)
-          cleanup_keychain() {
-            if [ "${#ORIGINAL_KEYCHAINS[@]}" -gt 0 ]; then
-              security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}" \
-                2>/dev/null || true
-            fi
-            security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
-            rm -f "$CERTIFICATE_PATH"
-          }
-          trap cleanup_keychain EXIT
-
-          # tauri-action imports the certificate into a temporary keychain that
-          # it removes when its own step ends. The standalone CLI is signed in a
-          # later step, so install the same certificate into a step-local keychain
-          # following GitHub's documented macOS signing pattern.
-          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$CERTIFICATE_PATH"
-          chmod 600 "$CERTIFICATE_PATH"
-          security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security import "$CERTIFICATE_PATH" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 \
-            -k "$KEYCHAIN_PATH"
-          security set-key-partition-list \
-            -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security list-keychains -d user -s "$KEYCHAIN_PATH"
-
-          CLI_PATH="src-tauri/target/${{ matrix.target }}/release/skills-manager-cli"
-          codesign --force --options runtime --timestamp \
-            --sign "$APPLE_SIGNING_IDENTITY" "$CLI_PATH"
-          codesign --verify --strict --verbose=2 "$CLI_PATH"
-          CLI_SIG_INFO="$(codesign -dvvv "$CLI_PATH" 2>&1)"
-          grep -E 'Authority|Identifier|Timestamp|flags=' <<<"$CLI_SIG_INFO"
-          grep -q 'Authority=Developer ID Application:' <<<"$CLI_SIG_INFO" || {
-            echo "CLI is not signed with a Developer ID Application certificate" >&2
-            exit 1
-          }
-          grep -qE 'flags=[^)]*runtime' <<<"$CLI_SIG_INFO" || {
-            echo "Hardened runtime is not enabled on the CLI" >&2
-            exit 1
-          }
-          CLI_ARCHIVE="$RUNNER_TEMP/skills-manager-cli-${{ matrix.label }}.zip"
-          ditto -c -k --keepParent "$CLI_PATH" "$CLI_ARCHIVE"
-          NOTARY_RESULT="$(xcrun notarytool submit "$CLI_ARCHIVE" \
-            --key "$APPLE_API_KEY_PATH" \
-            --key-id "$APPLE_API_KEY" \
-            --issuer "$APPLE_API_ISSUER" \
-            --wait --output-format json)"
-          printf '%s\n' "$NOTARY_RESULT"
-          jq -e '.status == "Accepted"' <<<"$NOTARY_RESULT" >/dev/null || {
-            echo "Apple did not accept the CLI notarization submission" >&2
-            exit 1
-          }
-          # A standalone executable cannot carry a stapled ticket, and
-          # `spctl --type execute` classifies a bare CLI as "not an app" even
-          # after notarization succeeds. The release gate is therefore the
-          # verified Developer ID signature plus Apple's explicit Accepted status.
-
-      - name: Upload CLI binary to draft release
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if [[ "${{ matrix.platform }}" == "windows-latest" ]]; then
-            CLI_PATH="src-tauri/target/${{ matrix.target }}/release/skills-manager-cli.exe"
-            CLI_ASSET="skills-manager-cli-${{ matrix.label }}.exe"
-          else
-            CLI_PATH="src-tauri/target/${{ matrix.target }}/release/skills-manager-cli"
-            CLI_ASSET="skills-manager-cli-${{ matrix.label }}"
-          fi
-          CLI_UPLOAD="$RUNNER_TEMP/$CLI_ASSET"
-          cp "$CLI_PATH" "$CLI_UPLOAD"
-          gh release upload "${{ github.ref_name }}" \
-            --repo "${{ github.repository }}" \
-            "$CLI_UPLOAD" --clobber
-
-  verify-updater-assets:
+  verify-release-assets:
     needs: build
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
-    name: Verify updater assets
+    name: Verify release assets
     steps:
-      - name: Validate updater metadata and signatures
+      - name: Validate bundle assets on the draft release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-
-          # The release is still a draft at this point, and /releases/tags/{tag}
-          # returns 404 for drafts, so it has to be located by listing.
           releases_json=$(curl -fsSL \
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${REPO}/releases?per_page=100")
-
           release_json=$(echo "$releases_json" | jq --arg t "$TAG" '.[] | select(.tag_name == $t)')
           if [ -z "$release_json" ]; then
             echo "No release found for tag ${TAG}" >&2
             exit 1
           fi
-
           asset_names=$(echo "$release_json" | jq -r '.assets[]?.name')
           echo "Assets on the draft release:"
           echo "$asset_names" | sed 's/^/  /'
-
-          if ! echo "$asset_names" | grep -qx 'latest.json'; then
-            echo "Missing updater metadata asset: latest.json" >&2
-            exit 1
-          fi
-
-          if ! echo "$asset_names" | grep -q '\.sig'; then
-            echo "Missing updater signature assets (*.sig)" >&2
-            exit 1
-          fi
-
           fail=0
-          for cli_asset in \
-            skills-manager-cli-macOS-arm64 \
-            skills-manager-cli-macOS-x64 \
-            skills-manager-cli-Windows-x64.exe \
-            skills-manager-cli-Linux-x64; do
-            if ! echo "$asset_names" | grep -qx "$cli_asset"; then
-              echo "Missing CLI release asset: ${cli_asset}" >&2
-              fail=1
-            fi
-          done
-
-          # Draft assets are not served from the public download host, so fetch
-          # latest.json through the authenticated asset endpoint.
-          asset_id=$(echo "$release_json" | jq -r '.assets[] | select(.name == "latest.json") | .id')
-          curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/octet-stream" \
-            "https://api.github.com/repos/${REPO}/releases/assets/${asset_id}" -o /tmp/latest.json
-
-          # v1.29.0 published with no darwin entries at all because only Windows
-          # and Linux were asserted here, so every shipped platform is checked now.
-          for platform in darwin-aarch64 darwin-x86_64 windows-x86_64 linux-x86_64; do
-            if ! jq -e --arg p "$platform" '.platforms[$p].signature and .platforms[$p].url' /tmp/latest.json >/dev/null; then
-              echo "latest.json is missing a signed updater entry for ${platform}" >&2
-              fail=1
-            fi
-          done
-
-          # A macOS leg that dies during notarization still leaves the release
-          # looking plausible, so require its user-facing artifacts too.
-          for pattern in '\.dmg$' '\.app\.tar\.gz$'; do
+          for pattern in '\.dmg$' '\.AppImage$'; do
             if ! echo "$asset_names" | grep -qE "$pattern"; then
-              echo "Missing macOS asset matching ${pattern}" >&2
+              echo "Missing release asset matching ${pattern}" >&2
               fail=1
             fi
           done
-
           if [ "$fail" -ne 0 ]; then
-            echo "--- latest.json ---" >&2
-            cat /tmp/latest.json >&2
             exit 1
           fi
-
-          echo "Updater assets validation passed"
+          echo "Release assets validation passed"
 
   publish-release:
-    needs: [build, verify-updater-assets]
+    needs: [build, verify-release-assets]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     name: Publish release
