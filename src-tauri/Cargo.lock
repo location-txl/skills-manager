@@ -4983,6 +4983,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "unicode-normalization",
+ "url",
  "urlencoding",
  "uuid",
  "walkdir",

@@ -60,8 +60,12 @@
   agent 失败仍退出 0**——绝不能只看退出码。
 - 默认 symlink 模式：技能进 canonical 目录（全局 `~/.agents/skills`），
   非 universal agent 目录建相对符号链接；universal agent 直读 canonical。
-  `--copy` 改为逐 agent 复制。项目安装时，未显式指定的 agent 若项目根
-  目录不存在会被跳过（结果标 skipped）。
+  `--copy` 改为逐 agent 复制。**单目标目录（例如只选一个非 universal
+  agent）时无视 flag 强制 copy，直接复制进该 agent 目录、不建 canonical**
+  （实测 1.7.4：`add <local> -g -a claude-code` → `~/.claude/skills/<name>`
+  实体目录 + 锁 v3；两个非 universal agent 才是 canonical+双链接）。
+  项目安装时，未显式指定的 agent 若项目根目录不存在会被跳过（结果标
+  skipped）。
 - 交互点（技能多选/agent 选择/scope/方式/总确认）全部可被 `-y` +
   显式 `-a/-s/-g/--copy` 跳过。
 

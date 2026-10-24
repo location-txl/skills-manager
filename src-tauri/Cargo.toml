@@ -45,6 +45,7 @@ git2 = { version = "0.19", features = ["vendored-openssl"] }
 tokio = { version = "1", features = ["full"] }
 regex = "1"
 hex = "0.4"
+url = "2"
 urlencoding = "2"
 zip = "2"
 tempfile = "3.26.0"

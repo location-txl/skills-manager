@@ -5,6 +5,8 @@ pub mod auto_backup;
 pub mod central_repo;
 pub mod change_watcher;
 pub mod cli_bridge;
+#[cfg(test)]
+mod contract_tests;
 pub mod content_hash;
 pub mod crypto;
 pub mod error;
@@ -39,6 +41,7 @@ pub mod skill_store;
 pub mod skillssh_api;
 pub mod skills_cli;
 pub mod scope;
+pub mod state;
 pub mod sync_engine;
 pub mod sync_metadata;
 pub mod timing;

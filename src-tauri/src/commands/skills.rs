@@ -1751,8 +1751,11 @@ where
 /// declined. The first call from the UI passes `None`; if it comes back with
 /// `pending_removals`, the user is shown exactly what would disappear and only
 /// then is it called again with that token.
+///
+/// Renamed with a `legacy_` prefix to free the `update_skill` IPC name for
+/// the Vercel-CLI command; this whole module is removed in phase D.
 #[tauri::command]
-pub async fn update_skill(
+pub async fn legacy_update_skill(
     skill_id: String,
     approved_removals: Option<String>,
     store: State<'_, Arc<SkillStore>>,

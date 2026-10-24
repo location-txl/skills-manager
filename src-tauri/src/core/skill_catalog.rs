@@ -756,7 +756,7 @@ mod tests {
         let home = temp_home();
         let shared = home.path().join(".agents/skills");
         write_skill(&shared, "merge-me", "d");
-        let mut catalog = catalog_for(home.path());
+        let catalog = catalog_for(home.path());
         assert!(!catalog.cli_available, "disk-only until merged");
 
         let items = vec![CliSkillItem {

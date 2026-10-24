@@ -798,11 +798,15 @@ pub fn run() {
     let store_for_setup = store.clone();
 
     let cancel_registry = Arc::new(core::install_cancel::InstallCancelRegistry::new());
+    // Vercel-CLI-backed state: runtime cache, write queue, cancel registry,
+    // open project, watcher roots. Phase D removes the legacy store above.
+    let vercel_state = Arc::new(core::state::AppState::new());
 
     let builder_start = Instant::now();
     tauri::Builder::default()
         .manage(store)
         .manage(cancel_registry)
+        .manage(vercel_state.clone())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             restore_main_window(app);
         }))
@@ -921,6 +925,8 @@ pub fn run() {
 
             let step = Instant::now();
             core::file_watcher::start_file_watcher(app.handle().clone(), store_for_setup.clone());
+            core::state::refresh_watch_roots(&vercel_state);
+            core::change_watcher::start_change_watcher(app.handle().clone(), vercel_state.watch_roots.clone());
             log::info!(
                 "startup: start_file_watcher done in {} ms",
                 step.elapsed().as_millis()
@@ -1000,6 +1006,21 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            // Vercel-CLI backed commands (the new surface)
+            commands::vercel::get_runtime_status,
+            commands::vercel::set_cli_path,
+            commands::vercel::get_last_cli_error,
+            commands::vercel::list_skills,
+            commands::vercel::read_skill_doc,
+            commands::vercel::list_agent_status,
+            commands::vercel::search_marketplace,
+            commands::vercel::open_project,
+            commands::vercel::close_project,
+            commands::vercel::reveal_skill_folder,
+            commands::vercel::install_skill,
+            commands::vercel::remove_skill,
+            commands::vercel::update_skill,
+            commands::vercel::cancel_operation,
             // Tools
             commands::tools::get_tool_status,
             commands::tools::set_tool_enabled,
@@ -1028,7 +1049,7 @@ pub fn run() {
             commands::skills::install_from_skillssh,
             commands::skills::check_skill_update,
             commands::skills::check_all_skill_updates,
-            commands::skills::update_skill,
+            commands::skills::legacy_update_skill,
             commands::skills::batch_update_skills,
             commands::skills::reimport_local_skill,
             commands::skills::relink_local_skill_source,
