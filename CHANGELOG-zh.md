@@ -5,6 +5,27 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.0] - 2026-10-25
+
+### 发布概览
+- **围绕 Vercel skills CLI 的破坏性重写。** 应用成为开源 [`skills`](https://github.com/vercel-labs/skills) CLI 的薄桌面前端：没有自己的数据库，所有安装、更新、卸载都由 CLI 执行。卸载本应用后，已安装技能仍可被 CLI 与所有兼容 Agent 完整使用。`~/.skills-manager` 下的旧数据不会被读取、迁移或删除。
+
+### 删除
+- SQLite 存储、私有中央仓库、Preset、标签、按技能的 Agent 开关、自带的 `skills-manager-cli` 二进制及其桥接、Git 备份/恢复/合并、多设备同步、技能自动更新器，以及它们的全部 UI。应用内自更新一并移除：本 fork 不再发布 updater 产物，也不再指向上游更新端点。
+- 旧的自有安装/更新引擎。技能一律经 `skills add` 安装、`skills update` 更新、`skills remove` 卸载——作用域与 Agent 显式选择，确认后才传 `-y`。
+
+### 新增
+- **技能库**：全局技能（共享 `~/.agents/skills` 与各 Agent 目录）去重展示，来源元数据读自 CLI 锁文件，按 Agent 展示可见性（共享/链接/复制/原生），支持批量卸载与安全的 SKILL.md 查看。
+- **Agent**：CLI 的 79 个 Agent 映射表与检测、按 Agent 的技能可见性，并明确共享目录可见性口径。
+- **项目**：一次一个文件夹的项目作用域安装/更新/卸载，无项目注册表。
+- **市场**：skills.sh 搜索 + 显式作用域与 Agent 的安装对话框。
+- **诊断**：Node/CLI 路径与版本、锁文件位置、运行时提示、最近 CLI 错误、panic 日志与日志摘录。
+- CLI 缺失时的只读降级，以及 `skills >= 1.7.0` 的写操作门槛；合同测试锚定 `skills@1.7.4`，在隔离 HOME 中跑真实流程。
+
+### 变更
+- 环境要求：Node.js >= 22 且 `npm install -g skills@^1.7.0`。主题、语言、文字大小、关闭行为与 CLI 路径覆盖均为纯 UI 偏好（localStorage），无后端设置存储。
+- 旧 `~/.skills-manager` 数据被隔离并忽略，其下内容不会被触碰。
+
 ## [1.43.0] - 2026-10-21
 
 ### 发布概览

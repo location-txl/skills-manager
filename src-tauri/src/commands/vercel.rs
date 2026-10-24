@@ -748,15 +748,19 @@ pub async fn remove_skill(
     // Verify: full removal must be gone from the snapshot; agent-scoped
     // removal keeps the skill (shared visibility rules apply).
     let after = snapshot_names(&scope);
+    // The catalog snapshots use frontmatter names (lock keys); the request
+    // carries folder slugs. Map each slug to the matching snapshot name via
+    // the CLI's sanitizeName before comparing.
+    let sanitize = skills_cli::cli_sanitize_name;
     let requested: Vec<String> = request
         .names
         .iter()
-        .map(|n| {
+        .map(|slug| {
             before
                 .iter()
-                .find(|b| b.eq_ignore_ascii_case(n))
+                .find(|name| sanitize(name) == sanitize(slug))
                 .cloned()
-                .unwrap_or_else(|| n.clone())
+                .unwrap_or_else(|| slug.clone())
         })
         .collect();
     let gone = requested
