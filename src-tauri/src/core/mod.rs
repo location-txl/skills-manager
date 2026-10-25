@@ -14,4 +14,5 @@ pub mod skill_catalog;
 pub mod skill_document;
 pub mod skill_metadata;
 pub mod skills_cli;
+pub mod symlink_share;
 pub mod state;

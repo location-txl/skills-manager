@@ -270,7 +270,10 @@ pub fn build_catalog_from_disk(
                 }
                 continue;
             }
-            // Native skill(s): real dirs only inside agent directories.
+            // Native skill(s): real dirs only inside agent directories. A
+            // symlink mixed into the group (e.g. a share link) keeps its own
+            // exposure — calling it "native" would make the GUI warn about
+            // replacing a copy where only a link sits.
             let first = valid[0];
             skills.push(build_view(
                 scope,
@@ -281,7 +284,12 @@ pub fn build_catalog_from_disk(
                     .map(|o| AgentExposureView {
                         id: o.agent.unwrap().key.to_string(),
                         name: o.agent.unwrap().display_name.to_string(),
-                        exposure: "native".into(),
+                        exposure: if o.exposure == "symlink" {
+                            "symlink"
+                        } else {
+                            "native"
+                        }
+                        .into(),
                     })
                     .collect(),
                 None,
@@ -687,6 +695,29 @@ mod tests {
         let view = s.agents.iter().find(|a| a.id == "claude-code").unwrap();
         assert_eq!(view.exposure, "native");
         assert!(s.path.ends_with(".claude/skills/claude-only"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shared_native_skill_keeps_link_exposure() {
+        // A native skill a share link was added to: the real dir stays
+        // "native", the link must not be relabeled "native" too — the GUI
+        // treats native/copy as "a replaceable copy" and would warn about
+        // data loss where only a link sits.
+        let home = temp_home();
+        let claude = home.path().join(".claude/skills");
+        write_skill(&claude, "claude-only", "d");
+        let gemini = home.path().join(".gemini/skills");
+        fs::create_dir_all(&gemini).unwrap();
+        std::os::unix::fs::symlink(&claude.join("claude-only"), gemini.join("claude-only")).unwrap();
+
+        let result = catalog_for(home.path());
+        assert_eq!(result.skills.len(), 1);
+        let s = &result.skills[0];
+        let claude_view = s.agents.iter().find(|a| a.id == "claude-code").unwrap();
+        assert_eq!(claude_view.exposure, "native");
+        let gemini_view = s.agents.iter().find(|a| a.id == "gemini-cli").unwrap();
+        assert_eq!(gemini_view.exposure, "symlink");
     }
 
     #[test]

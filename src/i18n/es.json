@@ -34,9 +34,30 @@
     "cancel": "Cancelar",
     "confirm": "Confirmar",
     "delete": "Eliminar",
-    "search": "Buscar"
+    "search": "Buscar",
+    "share": "Compartir"
   },
   "project": {
     "title": "Skills del proyecto"
+  },
+  "shareDialog": {
+    "title": "Compartir skill",
+    "action": "Compartir",
+    "source": "Carpeta del skill",
+    "hint": "Crea un enlace simbólico en el directorio de skills de cada agente seleccionado apuntando a esta carpeta — sin pasar por la CLI de skills, y la carpeta no se mueve ni se copia.",
+    "universalNote": "directorio compartido",
+    "conflictTitle": "¿Reemplazar copias existentes?",
+    "conflictMessage": "Los agentes siguientes ya tienen su propia copia de este skill. Compartir reemplazará esas carpetas por enlaces a esta — las ediciones locales dentro de ellas se perderán.",
+    "done": "Skill compartido.",
+    "doneWithFailures": "El uso compartido terminó con {{count}} fallos.",
+    "statusLinked": "enlazado",
+    "statusReplaced": "enlace reemplazado",
+    "statusReplacedCopy": "copia reemplazada",
+    "statusSkipped": "omitido",
+    "statusFailed": "fallo",
+    "statusConflict": "requiere confirmación",
+    "retryTitle": "¿Reemplazar lo que ya existe?",
+    "retryMessage": "Los agentes siguientes tienen otra cosa en el lugar de este skill (otro enlace o una copia). Confirma para reemplazarlo por un enlace a este skill — las ediciones locales de una copia real se perderán.",
+    "coOwnerNote": "dir. compartido"
   }
 }

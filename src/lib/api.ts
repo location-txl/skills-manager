@@ -190,6 +190,28 @@ export function updateSkill(request: UpdateRequest): Promise<OperationResult> {
   return invoke("update_skill", { request });
 }
 
+export interface ShareSkillRequest {
+  /** Absolute path of the skill folder to link at. */
+  path: string;
+  scope: Scope;
+  agents: string[];
+  /** Replace real folders at agent dirs with links (user-confirmed). */
+  replaceCopies: boolean;
+}
+
+export interface ShareItem {
+  agent: string;
+  /** linked | replaced | replaced-copy | skipped | failed | conflict
+   *  (`conflict` = target holds user content a confirmed re-run replaces) */
+  status: string;
+  detail: string | null;
+}
+
+/** Self-managed sharing: symlink agent skills dirs at an installed skill. */
+export function shareSkill(request: ShareSkillRequest): Promise<ShareItem[]> {
+  return invoke("share_skill", { request });
+}
+
 export function cancelOperation(opId: string): Promise<boolean> {
   return invoke("cancel_operation", { opId });
 }

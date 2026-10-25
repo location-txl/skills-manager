@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { writeText } from "@tauri-apps/plugin-clipboard-manager";
-import { Copy, FolderOpen, RefreshCw, Trash2 } from "lucide-react";
+import { Copy, FolderOpen, RefreshCw, Share2, Trash2 } from "lucide-react";
 import type { Scope, SkillView } from "../lib/api";
 import * as api from "../lib/api";
 import { DetailSheet } from "./DetailSheet";
@@ -10,6 +10,7 @@ import { SkillMarkdown } from "./SkillMarkdown";
 import { SkillStatusPill } from "./SkillStatusPill";
 import { AgentChips } from "./AgentChips";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { ShareDialog } from "./ShareDialog";
 import { getErrorMessage } from "../lib/error";
 import { compactHomePath, cn } from "../utils";
 
@@ -30,6 +31,7 @@ export function SkillDetail({ skill, scope, onClose, onChanged }: Props) {
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateConfirm, setUpdateConfirm] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     if (!skill) return;
@@ -162,6 +164,15 @@ export function SkillDetail({ skill, scope, onClose, onChanged }: Props) {
                 {t("library.untrackedNoUpdate")}
               </span>
             )}
+            {skill.status !== "broken-link" ? (
+              <button
+                onClick={() => setShareOpen(true)}
+                className="app-button-secondary flex items-center gap-1.5"
+              >
+                <Share2 className="h-3.5 w-3.5" />
+                {t("common.share")}
+              </button>
+            ) : null}
             <button
               onClick={() => setConfirmRemove(true)}
               className="flex items-center gap-1.5 rounded-lg border border-red-500/40 px-3 py-1.5 text-[13px] font-medium text-red-600 outline-none transition-colors hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400"
@@ -215,6 +226,16 @@ export function SkillDetail({ skill, scope, onClose, onChanged }: Props) {
         onClose={() => setUpdateConfirm(false)}
         onConfirm={handleUpdate}
       />
+
+      {skill.status !== "broken-link" ? (
+        <ShareDialog
+          open={shareOpen}
+          skill={skill}
+          scope={scope}
+          onClose={() => setShareOpen(false)}
+          onChanged={onChanged}
+        />
+      ) : null}
     </>
   );
 }

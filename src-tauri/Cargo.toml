@@ -36,6 +36,7 @@ semver = "1"
 image = { version = "0.25", default-features = false, features = ["png"] }
 notify = "6.1.1"
 tempfile = "3.26.0"
+junction = "2"
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

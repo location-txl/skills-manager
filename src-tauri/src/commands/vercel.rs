@@ -378,7 +378,9 @@ pub async fn reveal_skill_folder(
 }
 
 // ---------------------------------------------------------------------------
-// Write operations (the only path that changes anything on disk)
+// Write operations. All deploy through the skills CLI except `share_skill`,
+// which symlinks agent dirs at an existing skill folder on its own (see
+// core/symlink_share.rs for why).
 // ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Deserialize)]
@@ -867,6 +869,66 @@ pub async fn update_skill(
     refresh_watch_roots(&state);
     let _ = app.emit(crate::core::change_watcher::SKILLS_CHANGED_EVENT, ());
     Ok(result_from_outcome(&outcome, message, items))
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSkillRequest {
+    /// Absolute path of the installed skill folder to link at.
+    pub path: String,
+    pub scope: ScopeArg,
+    /// Agent keys from the controlled map (never display names).
+    pub agents: Vec<String>,
+    /// Allow replacing a real folder at an agent dir with the link.
+    pub replace_copies: bool,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareItemDto {
+    pub agent: String,
+    /// linked | replaced | replaced-copy | skipped | failed | conflict
+    /// (`conflict` = target holds user content a confirmed re-run replaces)
+    pub status: String,
+    pub detail: Option<String>,
+}
+
+/// Self-managed sharing: symlink agent skills dirs at an installed skill
+/// folder. The one write path that does not go through the skills CLI, so
+/// it also works in degraded (CLI unavailable) mode.
+#[tauri::command]
+pub async fn share_skill(
+    state: State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    request: ShareSkillRequest,
+) -> Result<Vec<ShareItemDto>, AppError> {
+    if request.agents.is_empty() {
+        return Err(AppError::invalid_input("select at least one agent"));
+    }
+    let scope = request.scope.clone().into_scope()?;
+    // Serialize with CLI writes: both mutate the same agent skills dirs.
+    let _guard = state.write_queue.lock().await;
+
+    let home = home();
+    let source = std::path::PathBuf::from(&request.path);
+    let keys = request.agents.clone();
+    let replace = request.replace_copies;
+    let items = tokio::task::spawn_blocking(move || {
+        crate::core::symlink_share::share_skill(&home, &scope, &source, &keys, replace)
+    })
+    .await
+    .map_err(AppError::internal)??;
+
+    refresh_watch_roots(&state);
+    let _ = app.emit(crate::core::change_watcher::SKILLS_CHANGED_EVENT, ());
+    Ok(items
+        .into_iter()
+        .map(|item| ShareItemDto {
+            agent: item.agent,
+            status: item.status.to_string(),
+            detail: item.detail,
+        })
+        .collect())
 }
 
 #[tauri::command]

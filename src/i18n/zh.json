@@ -38,7 +38,8 @@
     "selectedCount": "已选 {{count}} 项",
     "selectAll": "全选",
     "deselectAll": "取消全选",
-    "more": "更多"
+    "more": "更多",
+    "share": "共享"
   },
   "status": {
     "installed": "已安装",
@@ -229,5 +230,25 @@
         "description": "没有数据库，没有云端。卸载本应用后，你的技能仍被 CLI 原样使用。"
       }
     }
+  },
+  "shareDialog": {
+    "title": "共享技能",
+    "action": "共享",
+    "source": "技能文件夹",
+    "hint": "在所选 Agent 的技能目录创建指向该文件夹的软链 —— 不经 skills CLI，文件夹本身不会被移动或复制。",
+    "universalNote": "共享目录",
+    "conflictTitle": "替换现有副本？",
+    "conflictMessage": "以下 Agent 目录中已有该技能的独立副本。共享会把这些文件夹替换为指向当前技能的链接，其中的本地修改将丢失。",
+    "done": "共享完成。",
+    "doneWithFailures": "共享完成，{{count}} 项失败。",
+    "statusLinked": "已链接",
+    "statusReplaced": "已替换链接",
+    "statusReplacedCopy": "已替换副本",
+    "statusSkipped": "跳过",
+    "statusFailed": "失败",
+    "statusConflict": "待确认",
+    "retryTitle": "替换已存在的内容？",
+    "retryMessage": "以下 Agent 目录中该技能的位置上已有其他内容（别的链接或副本）。确认后将其替换为指向本技能的链接——实体副本中的本地修改将丢失。",
+    "coOwnerNote": "目录共用"
   }
 }

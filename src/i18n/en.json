@@ -38,7 +38,8 @@
     "selectedCount": "{{count}} selected",
     "selectAll": "Select all",
     "deselectAll": "Deselect all",
-    "more": "More"
+    "more": "More",
+    "share": "Share"
   },
   "status": {
     "installed": "Installed",
@@ -229,5 +230,25 @@
         "description": "No database, no cloud. Remove this app and your skills keep working with the CLI unchanged."
       }
     }
+  },
+  "shareDialog": {
+    "title": "Share skill",
+    "action": "Share",
+    "source": "Skill folder",
+    "hint": "Creates a symlink in each selected agent's skills dir pointing at this folder — no skills CLI involved, and the folder itself is not moved or copied.",
+    "universalNote": "shared dir",
+    "conflictTitle": "Replace existing copies?",
+    "conflictMessage": "The agents below already hold their own copy of this skill. Sharing replaces those folders with links to this one — local edits inside them will be lost.",
+    "done": "Skill shared.",
+    "doneWithFailures": "Sharing finished with {{count}} failures.",
+    "statusLinked": "linked",
+    "statusReplaced": "link replaced",
+    "statusReplacedCopy": "copy replaced",
+    "statusSkipped": "skipped",
+    "statusFailed": "failed",
+    "statusConflict": "needs confirmation",
+    "retryTitle": "Replace what is already there?",
+    "retryMessage": "The agents below have something else at this skill's spot (another link, or a copy). Confirm to replace it with a link to this skill — local edits inside a real copy will be lost.",
+    "coOwnerNote": "dir shared"
   }
 }

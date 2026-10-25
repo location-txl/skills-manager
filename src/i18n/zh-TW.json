@@ -34,9 +34,30 @@
     "cancel": "取消",
     "confirm": "確認",
     "delete": "刪除",
-    "search": "搜尋"
+    "search": "搜尋",
+    "share": "共用"
   },
   "project": {
     "title": "專案 Skills"
+  },
+  "shareDialog": {
+    "title": "共用技能",
+    "action": "共用",
+    "source": "技能資料夾",
+    "hint": "在所選 Agent 的技能目錄建立指向該資料夾的符號連結 —— 不經 skills CLI，資料夾本身不會被移動或複製。",
+    "universalNote": "共享目錄",
+    "conflictTitle": "替換現有副本？",
+    "conflictMessage": "以下 Agent 目錄中已有該技能的獨立副本。共用會把這些資料夾替換為指向目前技能的連結，其中的本地修改將遺失。",
+    "done": "共用完成。",
+    "doneWithFailures": "共用完成，{{count}} 項失敗。",
+    "statusLinked": "已連結",
+    "statusReplaced": "已替換連結",
+    "statusReplacedCopy": "已替換副本",
+    "statusSkipped": "跳過",
+    "statusFailed": "失敗",
+    "statusConflict": "待確認",
+    "retryTitle": "替換已存在的內容？",
+    "retryMessage": "以下 Agent 目錄中該技能的位置上已有其他內容（別的連結或副本）。確認後將其替換為指向本技能的連結——實體副本中的本地修改將遺失。",
+    "coOwnerNote": "目錄共用"
   }
 }
