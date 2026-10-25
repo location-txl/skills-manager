@@ -41,7 +41,7 @@ pub struct ShareItem {
 
 /// Link every named agent's skills dir at `source`.
 ///
-/// Errors abort the whole call (bad or unmanaged source, bad scope);
+/// Errors abort the whole call (bad source, bad scope);
 /// per-agent outcomes come back as items — `conflict` for a target the user
 /// must confirm replacing, `failed`/`skipped` otherwise — so the rest of the
 /// batch still applies.
@@ -52,7 +52,7 @@ pub fn share_skill(
     agent_keys: &[String],
     replace_copies: bool,
 ) -> Result<Vec<ShareItem>, AppError> {
-    let (source, name) = validated_source(source, home, scope_kind)?;
+    let (source, name) = validated_source(source)?;
 
     let mut items = Vec::with_capacity(agent_keys.len());
     for key in agent_keys {
@@ -93,7 +93,7 @@ pub fn unshare_skill(
     source: &Path,
     agent_keys: &[String],
 ) -> Result<Vec<UnshareItem>, AppError> {
-    let (source, name) = validated_source(source, home, scope_kind)?;
+    let (source, name) = validated_source(source)?;
 
     let mut items = Vec::with_capacity(agent_keys.len());
     for key in agent_keys {
@@ -110,13 +110,9 @@ pub fn unshare_skill(
 }
 
 /// The checks both share and unshare run on the caller-supplied source: an
-/// absolute, accessible folder with a SKILL.md that sits directly inside a
-/// managed skills dir. Returns the canonicalized folder and its name.
-fn validated_source(
-    source: &Path,
-    home: &Path,
-    scope_kind: &Scope,
-) -> Result<(PathBuf, PathBuf), AppError> {
+/// absolute, accessible folder with a SKILL.md. Returns the canonicalized
+/// folder and its name.
+fn validated_source(source: &Path) -> Result<(PathBuf, PathBuf), AppError> {
     if !source.is_absolute() {
         return Err(AppError::invalid_input("source path must be absolute"));
     }
@@ -128,14 +124,6 @@ fn validated_source(
     }
     if !source.join("SKILL.md").is_file() {
         return Err(AppError::invalid_input("source folder has no SKILL.md"));
-    }
-    if !is_managed_source(&source, home, scope_kind) {
-        // The GUI only ever shares folders its catalog listed; anything else
-        // reaching this command (a direct IPC invoke) gets no destructive
-        // authorization from it.
-        return Err(AppError::invalid_input(
-            "source folder is not inside a managed skills directory",
-        ));
     }
     let name = source
         .file_name()
@@ -346,32 +334,6 @@ fn co_owner_names(
         })
         .map(|a| a.display_name.to_string())
         .collect()
-}
-
-/// A skill folder the GUI could have listed: one sitting directly inside a
-/// managed skills dir — the scope's own roots, plus the global roots (a
-/// global skill may legitimately be shared into a project). Anything else,
-/// however valid a folder, is not a source this app vouches for.
-fn is_managed_source(source: &Path, home: &Path, scope: &Scope) -> bool {
-    let Some(parent) = source.parent() else {
-        return false;
-    };
-    let mut roots = vec![scope::global_skills_dir_for(home)];
-    for agent in agents::AGENTS {
-        if let Some(dir) = agent.global_skills_dir(home) {
-            roots.push(dir);
-        }
-    }
-    if let Scope::Project(root) = scope {
-        roots.push(scope::project_skills_dir_for(root));
-        for agent in agents::AGENTS {
-            roots.push(agent.project_skills_dir(root));
-        }
-    }
-    // `parent` comes from the canonicalized source; the roots are lexical
-    // home-joined paths, so compare against their physical form (a home
-    // behind a symlink, like macOS temp dirs, would otherwise mismatch).
-    roots.iter().any(|r| r.canonicalize().is_ok_and(|c| &c == parent))
 }
 
 // ---------------------------------------------------------------------------
@@ -754,22 +716,17 @@ mod tests {
     }
 
     #[test]
-    fn source_outside_managed_roots_is_rejected() {
+    fn source_outside_managed_roots_is_shared() {
         let home = temp_home();
-        // A valid skill folder, but in a place no agent reads.
+        // A valid skill folder in a place no agent reads — linkable all the same.
         let stray = home.path().join("somewhere-else").join("web-design");
         std::fs::create_dir_all(&stray).unwrap();
         std::fs::write(stray.join("SKILL.md"), "---\nname: test\n---\n").unwrap();
 
-        let err = share_skill(
-            home.path(),
-            &Scope::Global,
-            &stray,
-            &["gemini-cli".to_string()],
-            false,
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("managed skills directory"));
+        let items = share(home.path(), &stray, &["gemini-cli"], false);
+        assert_eq!(items[0].status, "linked", "detail: {:?}", items[0].detail);
+        let link = home.path().join(".gemini").join("skills").join("web-design");
+        assert!(std::fs::canonicalize(&link).unwrap() == stray.canonicalize().unwrap());
     }
 
     #[test]
@@ -918,19 +875,15 @@ mod tests {
     }
 
     #[test]
-    fn unshare_rejects_unmanaged_source() {
+    fn unshare_source_outside_managed_roots_removes_link() {
         let home = temp_home();
         let stray = home.path().join("somewhere-else").join("web-design");
         std::fs::create_dir_all(&stray).unwrap();
         std::fs::write(stray.join("SKILL.md"), "---\nname: test\n---\n").unwrap();
+        share(home.path(), &stray, &["gemini-cli"], false);
 
-        let err = unshare_skill(
-            home.path(),
-            &Scope::Global,
-            &stray,
-            &["gemini-cli".to_string()],
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("managed skills directory"));
+        let items = unshare(home.path(), &stray, &["gemini-cli"]);
+        assert_eq!(items[0].status, "removed", "detail: {:?}", items[0].detail);
+        assert!(stray.join("SKILL.md").is_file(), "the source must survive");
     }
 }
