@@ -1,4 +1,11 @@
 {
+  "closeAction": {
+    "title": "关闭 Skills Manager？",
+    "message": "你希望退出应用，还是隐藏到系统托盘？",
+    "remember": "记住我的选择",
+    "close": "退出应用",
+    "hide": "隐藏到托盘"
+  },
   "app": {
     "title": "Skills Manager",
     "subtitle": "由 Vercel skills CLI 驱动"

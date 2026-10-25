@@ -1,4 +1,11 @@
 {
+  "closeAction": {
+    "title": "關閉 Skills Manager？",
+    "message": "你希望結束應用程式，還是隱藏至系統匣？",
+    "remember": "記住我的選擇",
+    "close": "結束應用程式",
+    "hide": "隱藏至系統匣"
+  },
   "app": {},
   "sidebar": {},
   "help": {

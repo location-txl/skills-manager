@@ -1,4 +1,11 @@
 {
+  "closeAction": {
+    "title": "¿Cerrar Skills Manager?",
+    "message": "¿Quieres salir de la aplicación u ocultarla en la bandeja del sistema?",
+    "remember": "Recordar mi elección",
+    "close": "Salir de la aplicación",
+    "hide": "Ocultar en la bandeja"
+  },
   "app": {},
   "sidebar": {},
   "help": {

@@ -1,4 +1,11 @@
 {
+  "closeAction": {
+    "title": "Close Skills Manager?",
+    "message": "Would you like to quit the app or hide it in the system tray?",
+    "remember": "Remember my choice",
+    "close": "Quit app",
+    "hide": "Hide to tray"
+  },
   "app": {
     "title": "Skills Manager",
     "subtitle": "Powered by the Vercel skills CLI"

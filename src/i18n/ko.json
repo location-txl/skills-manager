@@ -1,4 +1,11 @@
 {
+  "closeAction": {
+    "title": "Skills Manager를 닫으시겠습니까?",
+    "message": "앱을 종료하시겠습니까, 아니면 시스템 트레이로 숨기시겠습니까?",
+    "remember": "선택 기억하기",
+    "close": "앱 종료",
+    "hide": "트레이로 숨기기"
+  },
   "app": {},
   "sidebar": {},
   "help": {
