@@ -23,6 +23,7 @@ use std::path::{Path, PathBuf};
 
 /// One skill as shown in the UI. Field names are the frontend DTO contract.
 #[derive(Debug, Clone, serde::Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SkillView {
     /// `global:<path>` / `project:<path>` — UI identity only, never persisted.
     pub id: String,
@@ -54,6 +55,7 @@ pub struct AgentExposureView {
 }
 
 #[derive(Debug, Clone, serde::Serialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct CatalogResult {
     pub skills: Vec<SkillView>,
     /// Human-readable notes: stale lock entries, broken links, CLI errors.
@@ -524,6 +526,61 @@ mod tests {
 
     fn catalog_for(home: &Path) -> CatalogResult {
         build_catalog_from_disk(&Scope::Global, home, None)
+    }
+
+    #[test]
+    fn catalog_serializes_frontend_lock_state_and_cli_availability() {
+        let home = temp_home();
+        let lock = home.path().join(".agents/.skill-lock.json");
+        fs::create_dir_all(lock.parent().unwrap()).unwrap();
+
+        for (content, expected_state) in [
+            (None, "missing"),
+            (Some(r#"{"version":3,"skills":{}}"#), "ok"),
+            (Some(r#"{"version":4,"skills":{}}"#), "unsupported"),
+            (Some("{oops"), "corrupt"),
+        ] {
+            if let Some(content) = content {
+                fs::write(&lock, content).unwrap();
+            }
+            let catalog = catalog_for(home.path());
+            let json = serde_json::to_value(&catalog).unwrap();
+            assert_eq!(json["lockState"], expected_state);
+            assert_eq!(json["cliAvailable"], false);
+
+            let merged = merge_cli_listing(catalog, &[]);
+            let json = serde_json::to_value(&merged).unwrap();
+            assert_eq!(json["lockState"], expected_state);
+            assert_eq!(json["cliAvailable"], true);
+        }
+    }
+
+    #[test]
+    fn skill_serializes_frontend_source_metadata_and_tracking() {
+        let home = temp_home();
+        let shared = home.path().join(".agents/skills");
+        write_skill(&shared, "tracked", "Tracked skill");
+        write_skill(&shared, "untracked", "Local skill");
+        fs::write(
+            home.path().join(".agents/.skill-lock.json"),
+            r#"{"version":3,"skills":{"tracked":{"source":"owner/repo","sourceType":"github","sourceUrl":"https://github.com/owner/repo","installedAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-02T00:00:00Z"}}}"#,
+        )
+        .unwrap();
+
+        let json = serde_json::to_value(catalog_for(home.path())).unwrap();
+        let skills = json["skills"].as_array().unwrap();
+        let tracked = skills.iter().find(|s| s["name"] == "tracked").unwrap();
+        assert_eq!(tracked["isTrackedByVercel"], true);
+        assert_eq!(tracked["sourceUrl"], "https://github.com/owner/repo");
+        assert_eq!(tracked["sourceType"], "github");
+        assert_eq!(tracked["installedAt"], "2026-01-01T00:00:00Z");
+        assert_eq!(tracked["updatedAt"], "2026-01-02T00:00:00Z");
+
+        let untracked = skills.iter().find(|s| s["name"] == "untracked").unwrap();
+        assert_eq!(untracked["isTrackedByVercel"], false);
+        for key in ["sourceUrl", "sourceType", "installedAt", "updatedAt"] {
+            assert_eq!(untracked.get(key), Some(&serde_json::Value::Null));
+        }
     }
 
     #[test]
