@@ -198,7 +198,7 @@
     "about": "关于",
     "aboutBody": "Skills Manager 是开源 Vercel skills CLI 的桌面前端。它没有自己的数据库：你的技能存放在 ~/.agents/skills 和各个项目中，由 CLI 拥有。",
     "aboutVercel": "随时可以卸载本应用 —— 已安装的技能仍可被 CLI 和所有兼容 Agent 继续使用。",
-    "agentVisibilityHint": "关闭后，将在应用中屏蔽该 Agent，并隐藏仅关联已屏蔽 Agent 的 Skill。已有文件和链接会保留，可随时重新打开。",
+    "agentVisibilityHint": "列表包含已检测到目录、以及通过共享目录读取技能的 Agent（如 Kilo Code）。关闭后仅隐藏该 Agent 的图标和相关入口，不会隐藏或删除任何 Skill；文件和链接都会保留。",
     "agentHidden": "已屏蔽",
     "showAgent": "显示 {{name}}"
   },
@@ -260,5 +260,18 @@
     "retryTitle": "替换已存在的内容？",
     "retryMessage": "以下 Agent 目录中该技能的位置上已有其他内容（别的链接或副本）。确认后将其替换为指向本技能的链接——实体副本中的本地修改将丢失。",
     "coOwnerNote": "目录共用"
+  },
+  "agentShareBar": {
+    "all": "全部",
+    "shareAllTitle": "共享给所有尚未拥有该技能的已列出 Agent",
+    "notShared": "未共享",
+    "sharedWith": "已共享给 {{name}}。",
+    "unsharedFrom": "已移除 {{name}} 的链接。",
+    "shareAllDone": "已共享给 {{count}} 个 Agent。",
+    "conflictHint": "{{name}} 目录中该技能位置已有其他内容，请打开技能详情页处理。",
+    "managedHint": "{{name}} 以「{{mode}}」方式使用该技能，请在技能详情页处理。",
+    "lockedHint": "{{name}} 直接读取共享目录，无需切换。",
+    "skippedToast": "已跳过 {{name}}。",
+    "failedToast": "{{name}} 操作失败"
   }
 }

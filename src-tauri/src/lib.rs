@@ -257,6 +257,7 @@ pub fn run() {
             commands::vercel::remove_skill,
             commands::vercel::update_skill,
             commands::vercel::share_skill,
+            commands::vercel::unshare_skill,
             commands::vercel::cancel_operation,
             commands::vercel::app_exit,
             commands::vercel::hide_to_tray,

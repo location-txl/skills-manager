@@ -32,7 +32,7 @@
     "about": "Acerca de",
     "language": "Idioma",
     "title": "Ajustes",
-    "agentVisibilityHint": "Desactiva agentes para ocultarlos en la aplicación. También se ocultan las skills vinculadas solo a agentes ocultos. Se conservan los archivos y enlaces existentes.",
+    "agentVisibilityHint": "Incluye agentes detectados en disco y agentes que leen el directorio compartido de skills (p. ej. Kilo Code). Al desactivar uno solo se ocultan sus iconos y entradas; ninguna skill se oculta ni se elimina. Los archivos y enlaces se conservan.",
     "agentHidden": "Oculto",
     "showAgent": "Mostrar {{name}}"
   },

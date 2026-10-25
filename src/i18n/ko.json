@@ -32,7 +32,7 @@
     "title": "설정",
     "language": "언어",
     "about": "정보",
-    "agentVisibilityHint": "Agent를 끄면 앱 전체에서 숨겨집니다. 숨긴 Agent에만 연결된 Skill도 숨겨집니다. 기존 파일과 링크는 유지되며 언제든 다시 켤 수 있습니다.",
+    "agentVisibilityHint": "디스크에서 감지된 Agent와 공유 디렉터리에서 Skill을 읽는 Agent(예: Kilo Code)를 포함합니다. 끄면 해당 Agent의 아이콘과 항목만 숨겨지며, 어떤 Skill도 숨기거나 삭제하지 않습니다. 파일과 링크는 유지됩니다.",
     "agentHidden": "숨김",
     "showAgent": "{{name}} 표시"
   },

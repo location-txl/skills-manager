@@ -931,6 +931,53 @@ pub async fn share_skill(
         .collect())
 }
 
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UnshareSkillRequest {
+    /// Absolute path of the skill folder the links point at.
+    pub path: String,
+    pub scope: ScopeArg,
+    /// Agent keys from the controlled map (never display names).
+    pub agents: Vec<String>,
+}
+
+/// Self-managed unsharing: remove the links agents hold at a skill folder.
+/// The inverse of `share_skill` — only links that point at the folder are
+/// removed, never real copies, so there is no confirmation path.
+#[tauri::command]
+pub async fn unshare_skill(
+    state: State<'_, Arc<AppState>>,
+    app: tauri::AppHandle,
+    request: UnshareSkillRequest,
+) -> Result<Vec<ShareItemDto>, AppError> {
+    if request.agents.is_empty() {
+        return Err(AppError::invalid_input("select at least one agent"));
+    }
+    let scope = request.scope.clone().into_scope()?;
+    // Serialize with CLI writes: both mutate the same agent skills dirs.
+    let _guard = state.write_queue.lock().await;
+
+    let home = home();
+    let source = std::path::PathBuf::from(&request.path);
+    let keys = request.agents.clone();
+    let items = tokio::task::spawn_blocking(move || {
+        crate::core::symlink_share::unshare_skill(&home, &scope, &source, &keys)
+    })
+    .await
+    .map_err(AppError::internal)??;
+
+    refresh_watch_roots(&state);
+    let _ = app.emit(crate::core::change_watcher::SKILLS_CHANGED_EVENT, ());
+    Ok(items
+        .into_iter()
+        .map(|item| ShareItemDto {
+            agent: item.agent,
+            status: item.status.to_string(),
+            detail: item.detail,
+        })
+        .collect())
+}
+
 #[tauri::command]
 pub async fn cancel_operation(
     state: State<'_, Arc<AppState>>,

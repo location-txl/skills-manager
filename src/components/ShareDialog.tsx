@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Share2, X } from "lucide-react";
 import type { AgentStatus, Scope, ShareItem, SkillView } from "../lib/api";
 import * as api from "../lib/api";
+import { exposureOf, isSharedDirAgent } from "../lib/shareRules";
 import { useApp } from "../context/AppContext";
 import { AgentIcon } from "./AgentIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -47,18 +48,6 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
   /** Post-run conflicts (targets the catalog could not see) offered a retry. */
   const [retryAgents, setRetryAgents] = useState<string[] | null>(null);
 
-  /** How a listed agent already sees the skill, if at all. */
-  const exposureOf = (agent: AgentStatus) =>
-    skill.agents.find((e) => e.id === agent.id || e.name === agent.name)
-      ?.exposure;
-
-  /** Agents whose skills dir IS the shared dir read it directly; a link
-   *  there would expose the skill to every universal agent at once. */
-  const isSharedDirAgent = (agent: AgentStatus) =>
-    scope.kind === "global"
-      ? !!agent.globalDir && agent.globalDir === runtime?.globalSkillsDir
-      : agent.projectDir === ".agents/skills";
-
   /** Other agents reading this exact same dir (zencoder/zenflow share
    *  ~/.zencoder/skills; amp/replit/universal share ~/.config/agents/skills):
    *  the link is visible to them too, so say so instead of leaking silently. */
@@ -89,7 +78,7 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
     setSelected(
       new Set(
         selectableAgents
-          .filter((a) => a.detected && !isSharedDirAgent(a) && !exposureOf(a))
+          .filter((a) => a.detected && !isSharedDirAgent(a, scope, runtime?.globalSkillsDir ?? null) && !exposureOf(skill, a))
           .map((a) => a.id),
       ),
     );
@@ -111,7 +100,11 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
   const selectAll = () => {
     setResult(null);
     setSelected(
-      new Set(selectableAgents.filter((a) => !isSharedDirAgent(a)).map((a) => a.id)),
+      new Set(
+        selectableAgents
+          .filter((a) => !isSharedDirAgent(a, scope, runtime?.globalSkillsDir ?? null))
+          .map((a) => a.id),
+      ),
     );
   };
 
@@ -121,7 +114,13 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
       const items = await api.shareSkill({
         path: skill.path,
         scope,
-        agents: selectableAgents.filter((a) => selected.has(a.id) && !isSharedDirAgent(a)).map((a) => a.id),
+        agents: selectableAgents
+          .filter(
+            (a) =>
+              selected.has(a.id) &&
+              !isSharedDirAgent(a, scope, runtime?.globalSkillsDir ?? null),
+          )
+          .map((a) => a.id),
         replaceCopies,
       });
       setResult(items);
@@ -158,7 +157,7 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
       .filter(
         (a) =>
           selected.has(a.id) &&
-          CONFLICTING_EXPOSURES.has(exposureOf(a) ?? ""),
+          CONFLICTING_EXPOSURES.has(exposureOf(skill, a) ?? ""),
       )
       .map((a) => a.name);
     if (conflicts.length > 0) {
@@ -226,8 +225,8 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
             </div>
             <div className="grid max-h-44 grid-cols-2 gap-1.5 overflow-y-auto rounded-lg border border-border-subtle bg-bg-secondary p-2">
               {selectableAgents.map((agent) => {
-                const existingExposure = exposureOf(agent);
-                const sharedDir = isSharedDirAgent(agent);
+                const existingExposure = exposureOf(skill, agent);
+                const sharedDir = isSharedDirAgent(agent, scope, runtime?.globalSkillsDir ?? null);
                 return (
                   <button
                     key={agent.id}

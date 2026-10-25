@@ -18,7 +18,7 @@ import type {
   SkillView,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
-import { HIDDEN_AGENTS_KEY, isSkillVisible, readHiddenAgentIds, visibleCatalog } from "../lib/agentVisibility";
+import { HIDDEN_AGENTS_KEY, readHiddenAgentIds } from "../lib/agentVisibility";
 
 interface AppContextValue {
   runtime: RuntimeStatus | null;
@@ -60,32 +60,24 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState(true);
-  const [allGlobalCatalog, setGlobalCatalog] = useState<CatalogResult | null>(null);
+  const [globalCatalog, setGlobalCatalog] = useState<CatalogResult | null>(null);
   const [globalLoading, setGlobalLoading] = useState(true);
   const [allAgents, setAgents] = useState<AgentStatus[]>([]);
   const [hiddenAgentIds, setHiddenAgentIds] = useState(readHiddenAgentIds);
   const [project, setProject] = useState<ProjectInfo | null>(null);
-  const [allProjectCatalog, setProjectCatalog] = useState<CatalogResult | null>(null);
+  const [projectCatalog, setProjectCatalog] = useState<CatalogResult | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [rawDetailSkill, setDetailSkill] = useState<SkillView | null>(null);
+  const [detailSkill, setDetailSkill] = useState<SkillView | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const agents = useMemo(
     () => allAgents.filter((agent) => !hiddenAgentIds.has(agent.id)),
     [allAgents, hiddenAgentIds],
   );
-  const globalCatalog = useMemo(
-    () => visibleCatalog(allGlobalCatalog, hiddenAgentIds),
-    [allGlobalCatalog, hiddenAgentIds],
-  );
-  const projectCatalog = useMemo(
-    () => visibleCatalog(allProjectCatalog, hiddenAgentIds),
-    [allProjectCatalog, hiddenAgentIds],
-  );
-  const detailSkill = rawDetailSkill && isSkillVisible(rawDetailSkill, hiddenAgentIds)
-    ? rawDetailSkill : null;
+  // Hiding an agent is display-only (icons, filters, dialog targets); the
+  // catalogs themselves are never filtered, so every skill stays listed.
 
   const toggleAgentVisibility = useCallback((id: string) => {
     setHiddenAgentIds((current) => {

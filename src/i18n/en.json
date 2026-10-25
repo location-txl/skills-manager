@@ -198,7 +198,7 @@
     "about": "About",
     "aboutBody": "Skills Manager is a desktop front end for the open Vercel skills CLI. It keeps no database of its own: your skills live in ~/.agents/skills and your projects, owned by the CLI.",
     "aboutVercel": "Uninstall this app at any time — installed skills keep working with the CLI and every compatible agent.",
-    "agentVisibilityHint": "Turn off agents to hide them across the app. Skills linked only to hidden agents are also hidden. Existing files and links are kept.",
+    "agentVisibilityHint": "Includes agents detected on disk and agents that read the shared skills directory (e.g. Kilo Code). Turning one off only hides its icons and list entries across the app — no skill is hidden or removed. Files and links are kept.",
     "agentHidden": "Hidden",
     "showAgent": "Show {{name}}"
   },
@@ -260,5 +260,18 @@
     "retryTitle": "Replace what is already there?",
     "retryMessage": "The agents below have something else at this skill's spot (another link, or a copy). Confirm to replace it with a link to this skill — local edits inside a real copy will be lost.",
     "coOwnerNote": "dir shared"
+  },
+  "agentShareBar": {
+    "all": "All",
+    "shareAllTitle": "Share with every listed agent that does not have this skill yet",
+    "notShared": "Not shared",
+    "sharedWith": "Shared with {{name}}.",
+    "unsharedFrom": "Removed {{name}}'s link.",
+    "shareAllDone": "Shared with {{count}} agent(s).",
+    "conflictHint": "{{name}} already has something else at this skill's spot. Open the skill details to replace it.",
+    "managedHint": "{{name}} uses this skill as \"{{mode}}\". Open the skill details to manage it.",
+    "lockedHint": "{{name}} reads the shared directory directly; nothing to toggle.",
+    "skippedToast": "Skipped {{name}}.",
+    "failedToast": "Failed for {{name}}"
   }
 }

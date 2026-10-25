@@ -212,6 +212,19 @@ export function shareSkill(request: ShareSkillRequest): Promise<ShareItem[]> {
   return invoke("share_skill", { request });
 }
 
+export interface UnshareSkillRequest {
+  /** Absolute path of the skill folder the links point at. */
+  path: string;
+  scope: Scope;
+  agents: string[];
+}
+
+/** Self-managed unshare: remove agent links that point at the skill folder
+ *  (`removed | skipped | failed` — real copies are skipped, never deleted). */
+export function unshareSkill(request: UnshareSkillRequest): Promise<ShareItem[]> {
+  return invoke("unshare_skill", { request });
+}
+
 export function cancelOperation(opId: string): Promise<boolean> {
   return invoke("cancel_operation", { opId });
 }

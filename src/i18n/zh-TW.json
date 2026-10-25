@@ -32,7 +32,7 @@
     "title": "設定",
     "language": "語言",
     "about": "關於",
-    "agentVisibilityHint": "關閉後，將在應用程式中隱藏該 Agent，並隱藏僅關聯已隱藏 Agent 的 Skill。現有檔案和連結會保留，可隨時重新開啟。",
+    "agentVisibilityHint": "清單包含已偵測到目錄、以及透過共用目錄讀取 Skill 的 Agent（如 Kilo Code）。關閉後僅隱藏該 Agent 的圖示和相關入口，不會隱藏或刪除任何 Skill；檔案和連結都會保留。",
     "agentHidden": "已隱藏",
     "showAgent": "顯示 {{name}}"
   },

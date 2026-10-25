@@ -52,6 +52,71 @@ pub fn share_skill(
     agent_keys: &[String],
     replace_copies: bool,
 ) -> Result<Vec<ShareItem>, AppError> {
+    let (source, name) = validated_source(source, home, scope_kind)?;
+
+    let mut items = Vec::with_capacity(agent_keys.len());
+    for key in agent_keys {
+        match agents::by_key(key) {
+            Some(agent) => {
+                items.push(share_one(home, scope_kind, agent, &source, &name, replace_copies))
+            }
+            None => items.push(ShareItem {
+                agent: key.clone(),
+                status: "failed",
+                detail: Some("unknown agent".to_string()),
+            }),
+        }
+    }
+    Ok(items)
+}
+
+/// Per-agent outcome for unsharing, in request order.
+#[derive(Debug)]
+pub struct UnshareItem {
+    pub agent: String,
+    /// removed | skipped | failed
+    ///
+    /// `skipped` covers everything at the target that is not provably our
+    /// link: nothing there, a link pointing elsewhere, a real copy, the
+    /// shared dir, the agent hosting the source. Unsharing never destroys
+    /// user content, so there is no `conflict` and no confirmable variant.
+    pub status: &'static str,
+    pub detail: Option<String>,
+}
+
+/// Remove the links agents hold at `source` — the inverse of [`share_skill`].
+///
+/// Same source validation as sharing; per-agent outcomes come back as items.
+pub fn unshare_skill(
+    home: &Path,
+    scope_kind: &Scope,
+    source: &Path,
+    agent_keys: &[String],
+) -> Result<Vec<UnshareItem>, AppError> {
+    let (source, name) = validated_source(source, home, scope_kind)?;
+
+    let mut items = Vec::with_capacity(agent_keys.len());
+    for key in agent_keys {
+        match agents::by_key(key) {
+            Some(agent) => items.push(unshare_one(home, scope_kind, agent, &source, &name)),
+            None => items.push(UnshareItem {
+                agent: key.clone(),
+                status: "failed",
+                detail: Some("unknown agent".to_string()),
+            }),
+        }
+    }
+    Ok(items)
+}
+
+/// The checks both share and unshare run on the caller-supplied source: an
+/// absolute, accessible folder with a SKILL.md that sits directly inside a
+/// managed skills dir. Returns the canonicalized folder and its name.
+fn validated_source(
+    source: &Path,
+    home: &Path,
+    scope_kind: &Scope,
+) -> Result<(PathBuf, PathBuf), AppError> {
     if !source.is_absolute() {
         return Err(AppError::invalid_input("source path must be absolute"));
     }
@@ -76,22 +141,69 @@ pub fn share_skill(
         .file_name()
         .ok_or_else(|| AppError::invalid_input("source folder has no name"))?
         .to_owned();
-    let name = Path::new(&name);
+    Ok((source, PathBuf::from(name)))
+}
 
-    let mut items = Vec::with_capacity(agent_keys.len());
-    for key in agent_keys {
-        match agents::by_key(key) {
-            Some(agent) => {
-                items.push(share_one(home, scope_kind, agent, &source, name, replace_copies))
-            }
-            None => items.push(ShareItem {
-                agent: key.clone(),
-                status: "failed",
-                detail: Some("unknown agent".to_string()),
-            }),
-        }
+fn unshare_one(
+    home: &Path,
+    scope: &Scope,
+    agent: &AgentInfo,
+    source: &Path,
+    name: &Path,
+) -> UnshareItem {
+    let item = |status: &'static str, detail: Option<String>| UnshareItem {
+        agent: agent.display_name.to_string(),
+        status,
+        detail,
+    };
+
+    let dir = match scope {
+        Scope::Global => agent.global_skills_dir(home),
+        Scope::Project(root) => Some(agent.project_skills_dir(root)),
+    };
+    let Some(dir) = dir else {
+        return item("skipped", Some("no global skills dir".to_string()));
+    };
+
+    // The shared dir agent never had a link of its own to remove.
+    let shared = match scope {
+        Scope::Global => scope::global_skills_dir_for(home),
+        Scope::Project(root) => scope::project_skills_dir_for(root),
+    };
+    if dir == shared {
+        return item(
+            "skipped",
+            Some("reads the shared dir directly; it has no link of its own".to_string()),
+        );
     }
-    Ok(items)
+
+    let target = dir.join(name);
+    let state = match classify_target(&target, Some(source)) {
+        Ok(state) => state,
+        Err(e) => return item("failed", Some(format!("cannot inspect target: {e}"))),
+    };
+    match state {
+        TargetState::LinkToSource => {
+            // Remove exactly the classified link, so a real folder that
+            // appeared between the check and here errors instead of being eaten.
+            if let Err(e) = remove_classified_target(&target, state) {
+                return item("failed", Some(format!("could not remove the link: {e}")));
+            }
+            // Tidy up an agent skills dir the share itself created; this only
+            // succeeds on an actually empty dir, never one holding other skills.
+            let _ = std::fs::remove_dir(&dir);
+            item("removed", Some(target.display().to_string()))
+        }
+        TargetState::Absent => item("skipped", Some("nothing linked here".to_string())),
+        TargetState::ForeignLink => item(
+            "skipped",
+            Some("the link points somewhere else; not ours to remove".to_string()),
+        ),
+        TargetState::RealDir | TargetState::RealFile => item(
+            "skipped",
+            Some("a real folder lives here (a copy, or the source itself); not removed".to_string()),
+        ),
+    }
 }
 
 fn share_one(
@@ -675,5 +787,150 @@ mod tests {
         // The co-owner then resolves to the same (now linked) target.
         let items = share(home.path(), &source, &["zenflow"], false);
         assert_eq!(items[0].status, "skipped");
+    }
+
+    fn unshare(home: &Path, source: &Path, keys: &[&str]) -> Vec<UnshareItem> {
+        let keys: Vec<String> = keys.iter().map(|k| k.to_string()).collect();
+        unshare_skill(home, &Scope::Global, source, &keys).unwrap()
+    }
+
+    #[test]
+    fn unshare_removes_only_our_link() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        share(home.path(), &source, &["gemini-cli"], false);
+
+        let items = unshare(home.path(), &source, &["gemini-cli"]);
+        assert_eq!(items[0].status, "removed", "detail: {:?}", items[0].detail);
+        assert!(!home.path().join(".gemini").join("skills").join("web-design").exists());
+        assert!(source.join("SKILL.md").is_file(), "the source must survive");
+
+        // Nothing left to remove.
+        let items = unshare(home.path(), &source, &["gemini-cli"]);
+        assert_eq!(items[0].status, "skipped");
+    }
+
+    #[test]
+    fn unshare_leaves_foreign_link_alone() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let other = home.path().join(".gemini").join("skills").join("other-skill");
+        std::fs::create_dir_all(&other).unwrap();
+        let link = home.path().join(".gemini").join("skills").join("web-design");
+        std::os::unix::fs::symlink("other-skill", &link).unwrap();
+
+        let items = unshare(home.path(), &source, &["gemini-cli"]);
+        assert_eq!(items[0].status, "skipped");
+        assert!(std::fs::symlink_metadata(&link).unwrap().file_type().is_symlink());
+        assert!(other.is_dir());
+    }
+
+    #[test]
+    fn unshare_leaves_real_copy_alone() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let copy = home.path().join(".gemini").join("skills").join("web-design");
+        std::fs::create_dir_all(&copy).unwrap();
+        std::fs::write(copy.join("SKILL.md"), "local edits").unwrap();
+
+        let items = unshare(home.path(), &source, &["gemini-cli"]);
+        assert_eq!(items[0].status, "skipped");
+        assert_eq!(std::fs::read_to_string(copy.join("SKILL.md")).unwrap(), "local edits");
+    }
+
+    #[test]
+    fn unshare_hosting_agent_is_skipped() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let items = unshare(home.path(), &source, &["cursor"]);
+        assert_eq!(items[0].status, "skipped");
+        assert!(source.join("SKILL.md").is_file(), "the source must survive");
+    }
+
+    #[test]
+    fn unshare_shared_dir_agent_is_skipped() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let items = unshare(home.path(), &source, &["codex"]);
+        assert_eq!(items[0].status, "skipped");
+    }
+
+    #[test]
+    fn unshare_no_global_dir_agent_is_skipped() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let items = unshare(home.path(), &source, &["eve"]);
+        assert_eq!(items[0].status, "skipped");
+    }
+
+    #[test]
+    fn unshare_unknown_agent_is_failed_item() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        let items = unshare(home.path(), &source, &["no-such-agent"]);
+        assert_eq!(items[0].status, "failed");
+    }
+
+    #[test]
+    fn unshare_cleans_up_agent_dir_it_created() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        // claude-code's dir does not exist yet; share creates it, unshare
+        // removes the link and the now-empty dir goes with it.
+        share(home.path(), &source, &["claude-code"], false);
+        let items = unshare(home.path(), &source, &["claude-code"]);
+        assert_eq!(items[0].status, "removed");
+        assert!(!home.path().join(".claude").join("skills").exists());
+    }
+
+    #[test]
+    fn unshare_keeps_agent_dir_holding_other_skills() {
+        let home = temp_home();
+        let source = skill_in_cursor(home.path(), "web-design");
+        share(home.path(), &source, &["gemini-cli"], false);
+        // A second, unrelated skill keeps the agent dir alive.
+        let other = home.path().join(".gemini").join("skills").join("other-skill");
+        std::fs::create_dir_all(&other).unwrap();
+
+        let items = unshare(home.path(), &source, &["gemini-cli"]);
+        assert_eq!(items[0].status, "removed");
+        assert!(other.is_dir());
+    }
+
+    #[test]
+    fn unshare_project_scope_removes_project_link() {
+        let home = temp_home();
+        let project = home.path().join("proj");
+        let source = skill_in_cursor(home.path(), "web-design");
+        let keys = vec!["claude-code".to_string()];
+        share_skill(home.path(), &Scope::Project(project.clone()), &source, &keys, false).unwrap();
+
+        let items =
+            unshare_skill(home.path(), &Scope::Project(project.clone()), &source, &keys).unwrap();
+        assert_eq!(items[0].status, "removed");
+        assert!(!project.join(".claude").join("skills").join("web-design").exists());
+
+        // Universal agents read the project shared dir — skipped there too.
+        let keys = vec!["codex".to_string()];
+        let items =
+            unshare_skill(home.path(), &Scope::Project(project.clone()), &source, &keys).unwrap();
+        assert_eq!(items[0].status, "skipped");
+    }
+
+    #[test]
+    fn unshare_rejects_unmanaged_source() {
+        let home = temp_home();
+        let stray = home.path().join("somewhere-else").join("web-design");
+        std::fs::create_dir_all(&stray).unwrap();
+        std::fs::write(stray.join("SKILL.md"), "---\nname: test\n---\n").unwrap();
+
+        let err = unshare_skill(
+            home.path(),
+            &Scope::Global,
+            &stray,
+            &["gemini-cli".to_string()],
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("managed skills directory"));
     }
 }

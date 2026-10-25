@@ -110,32 +110,32 @@ describe("Agent visibility", () => {
     expect([...readHiddenAgentIds()]).toEqual(["codex"]);
   });
 
-  it("persists toggles, filters both scopes, retains raw exposures, and restores skills", async () => {
+  it("persists toggles, but hiding is display-only — no skill ever leaves the catalogs", async () => {
     await render();
     await act(async () => { await app.openProject("/project"); });
     await act(async () => { app.openSkillDetail(skills[0]); app.toggleAgentVisibility("claude-code"); });
     expect(app.allAgents).toEqual(agents);
     expect(app.agents.map((a) => a.id)).toEqual(["codex", "co-owner"]);
     for (const c of [app.globalCatalog, app.projectCatalog]) {
-      expect(c!.skills.map((s) => s.id)).toEqual(["mixed", "unlinked"]);
-      expect(c!.skills[0].agents).toHaveLength(2);
+      expect(c!.skills.map((s) => s.id)).toEqual(["hidden-only", "mixed", "unlinked"]);
+      expect(c!.skills.find((s) => s.id === "mixed")!.agents).toHaveLength(2);
     }
-    expect(app.detailSkill).toBeNull();
+    expect(app.detailSkill).toBe(skills[0]);
     expect(JSON.parse(localStorage.getItem(HIDDEN_AGENTS_KEY)!)).toEqual(["claude-code"]);
     await act(async () => { await app.refreshAll(); });
-    expect(app.globalCatalog!.skills.map((s) => s.id)).toEqual(["mixed", "unlinked"]);
+    expect(app.globalCatalog!.skills).toHaveLength(3);
     await act(async () => { app.toggleAgentVisibility("claude-code"); });
     expect(app.globalCatalog!.skills).toHaveLength(3);
     await act(async () => { agents.forEach((a) => app.toggleAgentVisibility(a.id)); });
     expect(app.agents).toEqual([]);
-    expect(app.globalCatalog!.skills.map((s) => s.id)).toEqual(["unlinked"]);
+    expect(app.globalCatalog!.skills.map((s) => s.id)).toEqual(["hidden-only", "mixed", "unlinked"]);
   });
 
   it("loads persisted preferences before displaying catalogs and keeps recovery switches", async () => {
     localStorage.setItem(HIDDEN_AGENTS_KEY, '["claude-code", "retired-agent"]');
     vi.mocked(api.listAgentStatus).mockResolvedValue(agents.map((a) => ({ ...a, detected: false })));
     await render(<Settings />);
-    expect(app.globalCatalog!.skills.map((s) => s.id)).toEqual(["mixed", "unlinked"]);
+    expect(app.globalCatalog!.skills).toHaveLength(3);
     const toggle = container.querySelector('[role="switch"][aria-label="settings.showAgent Claude Code"]');
     expect(toggle?.getAttribute("aria-checked")).toBe("false");
     expect(container.querySelector('[aria-label="settings.showAgent retired-agent"]')).not.toBeNull();
@@ -144,7 +144,36 @@ describe("Agent visibility", () => {
     expect(app.globalCatalog!.skills).toHaveLength(3);
   });
 
-  it("clears hidden agent filters and prunes hidden skills from bulk uninstall", async () => {
+  it("keeps a switch for CLI-attributed agents that own no skills directory", async () => {
+    // Kilo Code on a real machine: the CLI sees ~/.kilocode and the shared
+    // .agents/skills dir, so it attributes skills to it — but there is no
+    // ~/.kilo/skills, so disk detection alone never lists it in Settings.
+    const kilo: AgentStatus = { id: "kilo", name: "Kilo Code", detected: false, supportsGlobal: true, globalDir: "/home/.kilo/skills", projectDir: ".agents/skills" };
+    vi.mocked(api.listAgentStatus).mockResolvedValue([...agents, kilo]);
+    const attributed = {
+      ...skill("shared-dir-skill", ["codex"]),
+      agents: [
+        { id: "codex", name: "Codex", exposure: "symlink" as const },
+        { id: "kilo", name: "Kilo Code", exposure: "unknown" as const },
+      ],
+    };
+    vi.mocked(api.listSkills).mockImplementation(async (scope) => ({
+      ...catalog,
+      skills: [...skills, { ...attributed, scope: scope.kind }],
+    }));
+    await render(<Settings />);
+    const toggle = container.querySelector('[role="switch"][aria-label="settings.showAgent Kilo Code"]');
+    expect(toggle?.getAttribute("aria-checked")).toBe("true");
+    await click(toggle);
+    expect(app.hiddenAgentIds.has("kilo")).toBe(true);
+    expect(toggle?.getAttribute("aria-checked")).toBe("false");
+    await render(<Library />);
+    expect(container.textContent).toContain("shared-dir-skill");
+    expect(container.textContent).not.toContain("Kilo Code");
+    expect([...container.querySelectorAll<HTMLSelectElement>("select option")].some((o) => o.value === "kilo")).toBe(false);
+  });
+
+  it("clears hidden agent filters while hidden-agent skills stay listed and selectable", async () => {
     await render(<Library />);
     const select = container.querySelector("select")!;
     await act(async () => {
@@ -156,23 +185,27 @@ describe("Agent visibility", () => {
     await act(async () => { app.toggleAgentVisibility("claude-code"); });
     expect(select.value).toBe("");
     expect([...select.options].some((o) => o.value === "claude-code")).toBe(false);
-    expect(container.textContent).not.toContain("hidden-only");
+    // Display-only hiding: the skill card stays (selected even); only its
+    // agent chips and filter entry lose Claude Code.
+    expect(container.textContent).toContain("hidden-only");
     expect(container.textContent).not.toContain("Claude Code");
     await click(button("common.uninstall"));
     // ConfirmDialog's explicit confirmation is the second uninstall button.
     await click([...container.querySelectorAll("button")].reverse().find((b) => b.textContent === "common.uninstall"));
-    expect(api.removeSkill).toHaveBeenCalledWith(expect.objectContaining({ names: ["mixed"] }));
+    // The selection made under the agent filter survives the reset — the
+    // skills stay listed, so nothing is silently dropped from the uninstall.
+    expect(api.removeSkill).toHaveBeenCalledWith(expect.objectContaining({ names: ["hidden-only", "mixed"] }));
   });
 
-  it("uses visible catalogs for dashboard counts, project skills and agent pages", async () => {
+  it("hides agent rows and chips but keeps skill counts over the full catalogs", async () => {
     localStorage.setItem(HIDDEN_AGENTS_KEY, '["claude-code", "co-owner"]');
     await render(<><Dashboard /><AgentsView /><ProjectView /></>);
     await act(async () => { await app.openProject("/project"); });
-    expect(container.textContent).not.toContain("hidden-only");
+    expect(container.textContent).toContain("hidden-only");
     expect(container.textContent).not.toContain("Claude Code");
-    expect(container.textContent).toContain("project.skillCount 2");
+    expect(container.textContent).toContain("project.skillCount 3");
     const stat = [...container.querySelectorAll('a[href="/library"]')][0];
-    expect(stat.textContent).toContain("2");
+    expect(stat.textContent).toContain("3");
     const agentStat = container.querySelector('a[href="/agents"]')!;
     expect(agentStat.textContent).toContain("1");
   });

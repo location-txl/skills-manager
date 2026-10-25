@@ -1,33 +1,56 @@
 import { useTranslation } from "react-i18next";
 import { Check, FileText } from "lucide-react";
-import type { SkillView } from "../lib/api";
+import type { Scope, SkillView } from "../lib/api";
 import { cn } from "../utils";
 import { AgentChips } from "./AgentChips";
+import { AgentShareBar } from "./AgentShareBar";
 import { SkillStatusPill } from "./SkillStatusPill";
 
 interface Props {
   skill: SkillView;
   onOpen: (skill: SkillView) => void;
+  scope?: Scope;
   selectionMode?: boolean;
   selected?: boolean;
   onToggleSelect?: (skill: SkillView) => void;
 }
 
 /** One skill card in the library/project grid. */
-export function SkillCard({ skill, onOpen, selectionMode, selected, onToggleSelect }: Props) {
+export function SkillCard({
+  skill,
+  onOpen,
+  scope = { kind: "global" },
+  selectionMode,
+  selected,
+  onToggleSelect,
+}: Props) {
   const { t } = useTranslation();
+
+  const activate = () => {
+    if (selectionMode && onToggleSelect) {
+      onToggleSelect(skill);
+      return;
+    }
+    onOpen(skill);
+  };
+
+  // The hover agent bar nests real <button>s, and interactive elements cannot
+  // nest inside a <button> — so the card itself is a div with button semantics.
+  // Key handling only fires for focus on the card itself, never its children.
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (selectionMode && onToggleSelect) {
-          onToggleSelect(skill);
-          return;
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={activate}
+      onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activate();
         }
-        onOpen(skill);
       }}
       className={cn(
-        "app-panel group relative flex h-full flex-col gap-3 p-4 text-left transition-colors outline-none",
+        "app-panel group relative flex h-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors outline-none",
         selected ? "border-accent-border bg-surface-active" : "hover:bg-surface-hover",
       )}
     >
@@ -63,11 +86,25 @@ export function SkillCard({ skill, onOpen, selectionMode, selected, onToggleSele
       </p>
 
       <div className="mt-auto flex flex-col gap-2">
-        <AgentChips agents={skill.agents} max={4} />
+        {/* On hover the chips cross-fade into the share bar in the same slot
+            (one grid cell, no layout shift). Selection mode and broken links
+            keep the plain chips — no sharing there. */}
+        {selectionMode || skill.status === "broken-link" ? (
+          <AgentChips agents={skill.agents} max={4} />
+        ) : (
+          <div className="grid">
+            <div className="col-start-1 row-start-1 group-hover:invisible group-focus-within:invisible">
+              <AgentChips agents={skill.agents} max={4} />
+            </div>
+            <div className="col-start-1 row-start-1 hidden items-center group-hover:flex group-focus-within:flex">
+              <AgentShareBar skill={skill} scope={scope} />
+            </div>
+          </div>
+        )}
         <div className="truncate text-[11px] text-faint">
           {skill.source ?? t("library.sourceUnknown")}
         </div>
       </div>
-    </button>
+    </div>
   );
 }

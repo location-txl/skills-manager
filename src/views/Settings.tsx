@@ -18,6 +18,7 @@ import { getErrorMessage } from "../lib/error";
 import { compactHomePath, cn } from "../utils";
 import { AgentIcon } from "../components/AgentIcon";
 import { ToggleSwitch } from "../components/ToggleSwitch";
+import { manageableAgentOptions } from "../lib/agentVisibility";
 
 const TEXT_SIZES = ["small", "default", "large", "xlarge"] as const;
 
@@ -26,7 +27,7 @@ const TEXT_SIZES = ["small", "default", "large", "xlarge"] as const;
 export function Settings() {
   const { t } = useTranslation();
   const { i18n } = useTranslation();
-  const { runtime, runtimeLoading, refreshAll, allAgents, hiddenAgentIds, toggleAgentVisibility } = useApp();
+  const { runtime, runtimeLoading, refreshAll, allAgents, hiddenAgentIds, toggleAgentVisibility, globalCatalog, projectCatalog } = useApp();
   const { theme, setTheme } = useTheme();
   const [textSize, setTextSize] = useState(
     () => localStorage.getItem("skills-manager.textSize") ?? "default",
@@ -82,14 +83,10 @@ export function Settings() {
     i18n.changeLanguage(lang);
   };
 
-  const detectedAgents = allAgents.filter((a) => a.detected);
-  const managedAgents = allAgents.filter((a) => a.detected || hiddenAgentIds.has(a.id));
-  // Retain a recovery switch even if a future agent map no longer knows the ID.
-  const knownIds = new Set(allAgents.map((a) => a.id));
-  const agentOptions = [
-    ...managedAgents,
-    ...[...hiddenAgentIds].filter((id) => !knownIds.has(id)).map((id) => ({ id, name: id })),
-  ];
+  // Detected on disk, attributed by the CLI (shared-dir readers like Kilo
+  // Code own no skills dir), or already hidden — all keep a switch, so the
+  // library can never show an agent the user cannot switch off.
+  const agentOptions = manageableAgentOptions(allAgents, hiddenAgentIds, [globalCatalog, projectCatalog]);
 
   return (
     <div className="app-page app-page-narrow">
@@ -163,7 +160,7 @@ export function Settings() {
       {/* Detected agents */}
       <section className="app-panel p-5">
         <h2 className="mb-2 text-[13px] font-semibold text-primary">
-          {t("settings.detectedAgents", { count: detectedAgents.length })}
+          {t("settings.detectedAgents", { count: agentOptions.length })}
         </h2>
         <p className="mb-4 text-[12px] leading-5 text-muted">{t("settings.agentVisibilityHint")}</p>
         {agentOptions.length === 0 ? (
