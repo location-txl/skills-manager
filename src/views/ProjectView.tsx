@@ -159,7 +159,7 @@ export function ProjectView() {
       )}
 
       <SkillDetail
-        skill={detail}
+        skill={skills.find((skill) => skill.id === detail?.id) ?? null}
         scope={scope}
         onClose={() => setDetail(null)}
         onChanged={refreshProject}

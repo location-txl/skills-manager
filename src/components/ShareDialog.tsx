@@ -39,7 +39,7 @@ const STATUS_KEY: Record<string, string> = {
  */
 export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
   const { t } = useTranslation();
-  const { runtime, agents } = useApp();
+  const { runtime, agents, allAgents } = useApp();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<ShareItem[] | null>(null);
@@ -63,7 +63,7 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
    *  ~/.zencoder/skills; amp/replit/universal share ~/.config/agents/skills):
    *  the link is visible to them too, so say so instead of leaking silently. */
   const hasCoOwners = (agent: AgentStatus) =>
-    agents.some(
+    allAgents.some(
       (a) =>
         a.id !== agent.id &&
         (scope.kind === "global"
@@ -121,7 +121,7 @@ export function ShareDialog({ open, skill, scope, onClose, onChanged }: Props) {
       const items = await api.shareSkill({
         path: skill.path,
         scope,
-        agents: [...selected],
+        agents: selectableAgents.filter((a) => selected.has(a.id) && !isSharedDirAgent(a)).map((a) => a.id),
         replaceCopies,
       });
       setResult(items);

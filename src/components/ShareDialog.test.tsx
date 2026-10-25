@@ -46,6 +46,7 @@ vi.mock("../context/AppContext", () => ({
   useApp: () => ({
     runtime: { globalSkillsDir: "/home/.agents/skills" },
     agents: AGENTS,
+    allAgents: AGENTS,
   }),
 }));
 

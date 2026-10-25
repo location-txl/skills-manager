@@ -31,7 +31,10 @@
   "settings": {
     "title": "설정",
     "language": "언어",
-    "about": "정보"
+    "about": "정보",
+    "agentVisibilityHint": "Agent를 끄면 앱 전체에서 숨겨집니다. 숨긴 Agent에만 연결된 Skill도 숨겨집니다. 기존 파일과 링크는 유지되며 언제든 다시 켤 수 있습니다.",
+    "agentHidden": "숨김",
+    "showAgent": "{{name}} 표시"
   },
   "common": {
     "loading": "불러오는 중...",

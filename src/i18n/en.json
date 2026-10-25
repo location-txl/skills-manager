@@ -197,7 +197,10 @@
     "language": "Language",
     "about": "About",
     "aboutBody": "Skills Manager is a desktop front end for the open Vercel skills CLI. It keeps no database of its own: your skills live in ~/.agents/skills and your projects, owned by the CLI.",
-    "aboutVercel": "Uninstall this app at any time — installed skills keep working with the CLI and every compatible agent."
+    "aboutVercel": "Uninstall this app at any time — installed skills keep working with the CLI and every compatible agent.",
+    "agentVisibilityHint": "Turn off agents to hide them across the app. Skills linked only to hidden agents are also hidden. Existing files and links are kept.",
+    "agentHidden": "Hidden",
+    "showAgent": "Show {{name}}"
   },
   "help": {
     "eyebrow": "Guide",

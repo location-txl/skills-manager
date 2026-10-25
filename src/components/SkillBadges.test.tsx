@@ -7,6 +7,10 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
+const hiddenAgentIds = new Set<string>();
+vi.mock("../context/AppContext", () => ({
+  useApp: () => ({ hiddenAgentIds }),
+}));
 
 const { SkillStatusPill } = await import("../components/SkillStatusPill");
 const { AgentChips } = await import("../components/AgentChips");
@@ -25,6 +29,7 @@ let container: HTMLElement | null = null;
 beforeEach(() => {
   container?.remove();
   container = null;
+  hiddenAgentIds.clear();
 });
 
 describe("SkillStatusPill", () => {
@@ -45,6 +50,20 @@ describe("SkillStatusPill", () => {
 });
 
 describe("AgentChips", () => {
+  it("excludes hidden agents before calculating overflow", () => {
+    hiddenAgentIds.add("agent-1");
+    const agents = [1, 2, 3, 4].map((i) => ({
+      id: `agent-${i}`, name: `Agent ${i}`, exposure: "symlink" as const,
+    }));
+    act(() => {
+      container = render(createElement(AgentChips, { agents, max: 2 }));
+    });
+    expect(container!.textContent).not.toContain("Agent 1");
+    expect(container!.textContent).toContain("Agent 2");
+    expect(container!.textContent).toContain("Agent 3");
+    expect(container!.textContent).toContain("+1");
+  });
+
   it("shows the notLinked hint when no agent sees the skill", () => {
     act(() => {
       container = render(createElement(AgentChips, { agents: [] }));

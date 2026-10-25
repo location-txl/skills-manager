@@ -28,10 +28,13 @@ export function Library() {
     detailSkill,
     openSkillDetail,
     closeSkillDetail,
+    hiddenAgentIds,
   } = useApp();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [agentFilter, setAgentFilter] = useState("");
+  const [rawAgentFilter, setAgentFilter] = useState("");
+  const agentFilter = hiddenAgentIds.has(rawAgentFilter) ? "" : rawAgentFilter;
+  if (agentFilter !== rawAgentFilter) setAgentFilter(agentFilter);
   const [installOpen, setInstallOpen] = useState(false);
   const [batchRemove, setBatchRemove] = useState(false);
 
@@ -64,10 +67,12 @@ export function Library() {
   const agentOptions = useMemo(() => {
     const ids = new Map<string, string>();
     for (const skill of skills) {
-      for (const agent of skill.agents) ids.set(agent.id, agent.name);
+      for (const agent of skill.agents) {
+        if (!hiddenAgentIds.has(agent.id)) ids.set(agent.id, agent.name);
+      }
     }
     return [...ids.entries()].sort((a, b) => a[1].localeCompare(b[1]));
-  }, [skills]);
+  }, [skills, hiddenAgentIds]);
 
   const selectedSkills = useMemo(
     () => skills.filter((s) => multi.selectedIds.has(s.id)),

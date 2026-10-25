@@ -197,7 +197,10 @@
     "language": "语言",
     "about": "关于",
     "aboutBody": "Skills Manager 是开源 Vercel skills CLI 的桌面前端。它没有自己的数据库：你的技能存放在 ~/.agents/skills 和各个项目中，由 CLI 拥有。",
-    "aboutVercel": "随时可以卸载本应用 —— 已安装的技能仍可被 CLI 和所有兼容 Agent 继续使用。"
+    "aboutVercel": "随时可以卸载本应用 —— 已安装的技能仍可被 CLI 和所有兼容 Agent 继续使用。",
+    "agentVisibilityHint": "关闭后，将在应用中屏蔽该 Agent，并隐藏仅关联已屏蔽 Agent 的 Skill。已有文件和链接会保留，可随时重新打开。",
+    "agentHidden": "已屏蔽",
+    "showAgent": "显示 {{name}}"
   },
   "help": {
     "eyebrow": "指南",

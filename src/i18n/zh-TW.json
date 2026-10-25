@@ -31,7 +31,10 @@
   "settings": {
     "title": "設定",
     "language": "語言",
-    "about": "關於"
+    "about": "關於",
+    "agentVisibilityHint": "關閉後，將在應用程式中隱藏該 Agent，並隱藏僅關聯已隱藏 Agent 的 Skill。現有檔案和連結會保留，可隨時重新開啟。",
+    "agentHidden": "已隱藏",
+    "showAgent": "顯示 {{name}}"
   },
   "common": {
     "loading": "載入中...",

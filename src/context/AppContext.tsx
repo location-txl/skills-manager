@@ -18,6 +18,7 @@ import type {
   SkillView,
 } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
+import { HIDDEN_AGENTS_KEY, isSkillVisible, readHiddenAgentIds, visibleCatalog } from "../lib/agentVisibility";
 
 interface AppContextValue {
   runtime: RuntimeStatus | null;
@@ -29,6 +30,9 @@ interface AppContextValue {
   refreshGlobal: () => Promise<void>;
 
   agents: AgentStatus[];
+  allAgents: AgentStatus[];
+  hiddenAgentIds: ReadonlySet<string>;
+  toggleAgentVisibility: (id: string) => void;
   refreshAgents: () => Promise<void>;
 
   project: ProjectInfo | null;
@@ -56,16 +60,49 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [runtime, setRuntime] = useState<RuntimeStatus | null>(null);
   const [runtimeLoading, setRuntimeLoading] = useState(true);
-  const [globalCatalog, setGlobalCatalog] = useState<CatalogResult | null>(null);
+  const [allGlobalCatalog, setGlobalCatalog] = useState<CatalogResult | null>(null);
   const [globalLoading, setGlobalLoading] = useState(true);
-  const [agents, setAgents] = useState<AgentStatus[]>([]);
+  const [allAgents, setAgents] = useState<AgentStatus[]>([]);
+  const [hiddenAgentIds, setHiddenAgentIds] = useState(readHiddenAgentIds);
   const [project, setProject] = useState<ProjectInfo | null>(null);
-  const [projectCatalog, setProjectCatalog] = useState<CatalogResult | null>(null);
+  const [allProjectCatalog, setProjectCatalog] = useState<CatalogResult | null>(null);
   const [projectLoading, setProjectLoading] = useState(false);
   const [appError, setAppError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
-  const [detailSkill, setDetailSkill] = useState<SkillView | null>(null);
+  const [rawDetailSkill, setDetailSkill] = useState<SkillView | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
+
+  const agents = useMemo(
+    () => allAgents.filter((agent) => !hiddenAgentIds.has(agent.id)),
+    [allAgents, hiddenAgentIds],
+  );
+  const globalCatalog = useMemo(
+    () => visibleCatalog(allGlobalCatalog, hiddenAgentIds),
+    [allGlobalCatalog, hiddenAgentIds],
+  );
+  const projectCatalog = useMemo(
+    () => visibleCatalog(allProjectCatalog, hiddenAgentIds),
+    [allProjectCatalog, hiddenAgentIds],
+  );
+  const detailSkill = rawDetailSkill && isSkillVisible(rawDetailSkill, hiddenAgentIds)
+    ? rawDetailSkill : null;
+
+  const toggleAgentVisibility = useCallback((id: string) => {
+    setHiddenAgentIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(HIDDEN_AGENTS_KEY, JSON.stringify([...hiddenAgentIds]));
+    } catch {
+      // Keep the preference usable for this session if storage is unavailable.
+    }
+  }, [hiddenAgentIds]);
 
   // Re-apply the persisted CLI override before the first detection so the
   // very first status reflects the user's Settings choice. Pure UI config —
@@ -202,6 +239,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       globalLoading,
       refreshGlobal,
       agents,
+      allAgents,
+      hiddenAgentIds,
+      toggleAgentVisibility,
       refreshAgents,
       project,
       projectCatalog,
@@ -227,6 +267,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       globalLoading,
       refreshGlobal,
       agents,
+      allAgents,
+      hiddenAgentIds,
+      toggleAgentVisibility,
       refreshAgents,
       project,
       projectCatalog,

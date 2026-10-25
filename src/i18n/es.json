@@ -31,7 +31,10 @@
   "settings": {
     "about": "Acerca de",
     "language": "Idioma",
-    "title": "Ajustes"
+    "title": "Ajustes",
+    "agentVisibilityHint": "Desactiva agentes para ocultarlos en la aplicación. También se ocultan las skills vinculadas solo a agentes ocultos. Se conservan los archivos y enlaces existentes.",
+    "agentHidden": "Oculto",
+    "showAgent": "Mostrar {{name}}"
   },
   "common": {
     "loading": "Cargando…",

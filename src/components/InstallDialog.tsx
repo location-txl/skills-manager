@@ -90,7 +90,8 @@ export function InstallDialog({
   };
 
   const start = async () => {
-    if (selected.size === 0) {
+    const targets = selectableAgents.filter((a) => selected.has(a.id)).map((a) => a.id);
+    if (targets.length === 0) {
       toast.error(t("installDialog.selectAgents"));
       return;
     }
@@ -101,7 +102,7 @@ export function InstallDialog({
       const res = await api.installSkill({
         source: sourceValue.trim(),
         scope,
-        agents: [...selected],
+        agents: targets,
         skills,
         copy,
         opId: id,

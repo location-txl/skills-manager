@@ -2,10 +2,11 @@ import { useTranslation } from "react-i18next";
 import { AgentIcon } from "./AgentIcon";
 import { cn } from "../utils";
 import type { AgentExposure } from "../lib/api";
+import { useApp } from "../context/AppContext";
 
 /** Row of agent chips; the icon is tinted by how the agent sees the skill. */
 export function AgentChips({
-  agents,
+  agents: allAgents,
   max = 6,
   className,
 }: {
@@ -14,6 +15,8 @@ export function AgentChips({
   className?: string;
 }) {
   const { t } = useTranslation();
+  const { hiddenAgentIds } = useApp();
+  const agents = allAgents.filter((agent) => !hiddenAgentIds.has(agent.id));
   if (agents.length === 0) {
     return (
       <span className={cn("text-[12px] text-muted", className)}>

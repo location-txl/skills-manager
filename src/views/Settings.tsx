@@ -16,6 +16,8 @@ import * as api from "../lib/api";
 import { getLastCliError } from "../lib/api";
 import { getErrorMessage } from "../lib/error";
 import { compactHomePath, cn } from "../utils";
+import { AgentIcon } from "../components/AgentIcon";
+import { ToggleSwitch } from "../components/ToggleSwitch";
 
 const TEXT_SIZES = ["small", "default", "large", "xlarge"] as const;
 
@@ -24,7 +26,7 @@ const TEXT_SIZES = ["small", "default", "large", "xlarge"] as const;
 export function Settings() {
   const { t } = useTranslation();
   const { i18n } = useTranslation();
-  const { runtime, runtimeLoading, refreshRuntime, agents } = useApp();
+  const { runtime, runtimeLoading, refreshAll, allAgents, hiddenAgentIds, toggleAgentVisibility } = useApp();
   const { theme, setTheme } = useTheme();
   const [textSize, setTextSize] = useState(
     () => localStorage.getItem("skills-manager.textSize") ?? "default",
@@ -50,7 +52,7 @@ export function Settings() {
     localStorage.setItem("skills-manager.cliPath", selected);
     try {
       await api.setCliPath(selected);
-      await refreshRuntime();
+      await refreshAll();
       toast.success(t("settings.cliPathUpdated"));
     } catch (e) {
       toast.error(getErrorMessage(e, "Request failed"));
@@ -62,7 +64,7 @@ export function Settings() {
     localStorage.removeItem("skills-manager.cliPath");
     try {
       await api.setCliPath(null);
-      await refreshRuntime();
+      await refreshAll();
     } catch (e) {
       toast.error(getErrorMessage(e, "Request failed"));
     }
@@ -80,7 +82,14 @@ export function Settings() {
     i18n.changeLanguage(lang);
   };
 
-  const detectedAgents = agents.filter((a) => a.detected);
+  const detectedAgents = allAgents.filter((a) => a.detected);
+  const managedAgents = allAgents.filter((a) => a.detected || hiddenAgentIds.has(a.id));
+  // Retain a recovery switch even if a future agent map no longer knows the ID.
+  const knownIds = new Set(allAgents.map((a) => a.id));
+  const agentOptions = [
+    ...managedAgents,
+    ...[...hiddenAgentIds].filter((id) => !knownIds.has(id)).map((id) => ({ id, name: id })),
+  ];
 
   return (
     <div className="app-page app-page-narrow">
@@ -90,7 +99,7 @@ export function Settings() {
           <p className="app-page-subtitle">{t("settings.subtitle")}</p>
         </div>
         <button
-          onClick={refreshRuntime}
+          onClick={refreshAll}
           disabled={runtimeLoading}
           className="app-toolbar-button app-toolbar-button-secondary"
         >
@@ -153,18 +162,31 @@ export function Settings() {
 
       {/* Detected agents */}
       <section className="app-panel p-5">
-        <h2 className="mb-3 text-[13px] font-semibold text-primary">
+        <h2 className="mb-2 text-[13px] font-semibold text-primary">
           {t("settings.detectedAgents", { count: detectedAgents.length })}
         </h2>
-        {detectedAgents.length === 0 ? (
+        <p className="mb-4 text-[12px] leading-5 text-muted">{t("settings.agentVisibilityHint")}</p>
+        {agentOptions.length === 0 ? (
           <p className="text-[12px] text-muted">{t("agents.noneDetected")}</p>
         ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {detectedAgents.map((a) => (
-              <span key={a.id} className="app-badge">
-                {a.name}
-              </span>
-            ))}
+          <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+            {agentOptions.map((a) => {
+              const visible = !hiddenAgentIds.has(a.id);
+              return (
+                <div key={a.id} className="flex min-w-0 items-center gap-2.5 rounded-lg border border-border-subtle bg-bg-secondary px-3 py-2.5">
+                  <AgentIcon agentKey={a.id} displayName={a.name} className="h-5 w-5 shrink-0" />
+                  <span className={cn("min-w-0 flex-1 truncate text-[12px]", visible ? "text-secondary" : "text-muted")} title={a.name}>
+                    {a.name}
+                  </span>
+                  {!visible ? <span className="shrink-0 text-[11px] text-muted">{t("settings.agentHidden")}</span> : null}
+                  <ToggleSwitch
+                    checked={visible}
+                    onChange={() => toggleAgentVisibility(a.id)}
+                    title={t("settings.showAgent", { name: a.name })}
+                  />
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
