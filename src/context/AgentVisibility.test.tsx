@@ -110,7 +110,7 @@ describe("Agent visibility", () => {
     expect([...readHiddenAgentIds()]).toEqual(["codex"]);
   });
 
-  it("persists toggles, but hiding is display-only — no skill ever leaves the catalogs", async () => {
+  it("persists toggles; no skill ever leaves the catalogs themselves", async () => {
     await render();
     await act(async () => { await app.openProject("/project"); });
     await act(async () => { app.openSkillDetail(skills[0]); app.toggleAgentVisibility("claude-code"); });
@@ -173,7 +173,27 @@ describe("Agent visibility", () => {
     expect([...container.querySelectorAll<HTMLSelectElement>("select option")].some((o) => o.value === "kilo")).toBe(false);
   });
 
-  it("clears hidden agent filters while hidden-agent skills stay listed and selectable", async () => {
+  it("keeps skills listed while any exposing agent is visible, in both scopes", async () => {
+    localStorage.setItem(HIDDEN_AGENTS_KEY, '["claude-code"]');
+    await render(<Library />);
+    // "hidden-only" is Claude-only → filtered; "mixed" keeps Codex; "unlinked"
+    // has no agent exposure and is never affected by hiding.
+    expect(container.textContent).not.toContain("hidden-only");
+    expect(container.textContent).toContain("mixed");
+    expect(container.textContent).toContain("unlinked");
+    await act(async () => { app.toggleAgentVisibility("claude-code"); });
+    expect(container.textContent).toContain("hidden-only");
+    await act(async () => {
+      app.toggleAgentVisibility("claude-code");
+      app.toggleAgentVisibility("codex");
+      app.toggleAgentVisibility("co-owner");
+    });
+    expect(container.textContent).not.toContain("hidden-only");
+    expect(container.textContent).not.toContain("mixed");
+    expect(container.textContent).toContain("unlinked");
+  });
+
+  it("clears hidden agent filters and prunes now-invisible skills from the selection", async () => {
     await render(<Library />);
     const select = container.querySelector("select")!;
     await act(async () => {
@@ -185,23 +205,26 @@ describe("Agent visibility", () => {
     await act(async () => { app.toggleAgentVisibility("claude-code"); });
     expect(select.value).toBe("");
     expect([...select.options].some((o) => o.value === "claude-code")).toBe(false);
-    // Display-only hiding: the skill card stays (selected even); only its
-    // agent chips and filter entry lose Claude Code.
-    expect(container.textContent).toContain("hidden-only");
+    // Hiding Claude Code drops "hidden-only" from the list and from the
+    // selection; "mixed" stays visible (Codex) and keeps its selection — the
+    // uninstall must not act on rows the user can no longer see.
+    expect(container.textContent).not.toContain("hidden-only");
+    expect(container.textContent).toContain("mixed");
     expect(container.textContent).not.toContain("Claude Code");
     await click(button("common.uninstall"));
     // ConfirmDialog's explicit confirmation is the second uninstall button.
     await click([...container.querySelectorAll("button")].reverse().find((b) => b.textContent === "common.uninstall"));
-    // The selection made under the agent filter survives the reset — the
-    // skills stay listed, so nothing is silently dropped from the uninstall.
-    expect(api.removeSkill).toHaveBeenCalledWith(expect.objectContaining({ names: ["hidden-only", "mixed"] }));
+    expect(api.removeSkill).toHaveBeenCalledWith(expect.objectContaining({ names: ["mixed"] }));
   });
 
   it("hides agent rows and chips but keeps skill counts over the full catalogs", async () => {
     localStorage.setItem(HIDDEN_AGENTS_KEY, '["claude-code", "co-owner"]');
     await render(<><Dashboard /><AgentsView /><ProjectView /></>);
     await act(async () => { await app.openProject("/project"); });
-    expect(container.textContent).toContain("hidden-only");
+    // "hidden-only" (Claude Code only) leaves the project list; "mixed"
+    // (Codex still visible) stays. Counts keep spanning the full catalog.
+    expect(container.textContent).not.toContain("hidden-only");
+    expect(container.textContent).toContain("mixed");
     expect(container.textContent).not.toContain("Claude Code");
     expect(container.textContent).toContain("project.skillCount 3");
     const stat = [...container.querySelectorAll('a[href="/library"]')][0];

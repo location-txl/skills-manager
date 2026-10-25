@@ -12,6 +12,7 @@ import { SearchInput } from "../components/SearchInput";
 import { MultiSelectToolbar } from "../components/MultiSelectToolbar";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import { useMultiSelect } from "../hooks/useMultiSelect";
+import { isSkillHiddenByAgents } from "../lib/agentVisibility";
 import { cn } from "../utils";
 
 type StatusFilter = "all" | "installed" | "untracked";
@@ -43,6 +44,7 @@ export function Library() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return skills.filter((skill) => {
+      if (isSkillHiddenByAgents(skill.agents, hiddenAgentIds)) return false;
       if (statusFilter === "installed" && !skill.isTrackedByVercel) return false;
       if (statusFilter === "untracked" && skill.isTrackedByVercel) return false;
       if (agentFilter && !skill.agents.some((a) => a.id === agentFilter)) return false;
@@ -54,14 +56,16 @@ export function Library() {
         (skill.source ?? "").toLowerCase().includes(q)
       );
     });
-  }, [skills, query, statusFilter, agentFilter]);
+  }, [skills, query, statusFilter, agentFilter, hiddenAgentIds]);
 
   const multi = useMultiSelect<SkillView>({
     items: skills,
     filtered,
     getKey: (s) => s.id,
     isItemActive: () => true,
-    filterSignal: `${statusFilter}|${agentFilter}|${query}`,
+    // The hidden-agent set is part of the signal: bulk actions must not carry
+    // a selection of skills the hiding just made invisible.
+    filterSignal: `${statusFilter}|${agentFilter}|${query}|${[...hiddenAgentIds].sort().join(",")}`,
   });
 
   const agentOptions = useMemo(() => {

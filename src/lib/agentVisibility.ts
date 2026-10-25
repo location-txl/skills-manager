@@ -1,9 +1,20 @@
 import type { AgentStatus, CatalogResult } from "./api";
 
-/** Hiding an agent is display-only: its icons, filter entries and dialog
- *  targets go away, but every skill stays in the library — no skill is ever
- *  removed or unlinked because of a hidden agent. */
+/** Hiding an agent is a display-level switch: its icons, filter entries and
+ *  dialog targets go away, and a skill every one of whose agents is hidden
+ *  leaves the Library/project lists. No skill is ever removed or unlinked
+ *  because of a hidden agent — un-hiding brings it straight back. */
 export const HIDDEN_AGENTS_KEY = "skills-manager.hiddenAgentIds";
+
+/** True when every agent exposing this skill is hidden: the skill leaves the
+ *  visible lists until one of its agents is shown again. A skill with no
+ *  agent exposure at all is never affected by hiding. */
+export function isSkillHiddenByAgents(
+  agents: ReadonlyArray<{ id: string }>,
+  hiddenAgentIds: ReadonlySet<string>,
+): boolean {
+  return agents.length > 0 && agents.every((agent) => hiddenAgentIds.has(agent.id));
+}
 
 export function readHiddenAgentIds(): Set<string> {
   try {

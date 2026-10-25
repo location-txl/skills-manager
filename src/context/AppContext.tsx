@@ -76,8 +76,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => allAgents.filter((agent) => !hiddenAgentIds.has(agent.id)),
     [allAgents, hiddenAgentIds],
   );
-  // Hiding an agent is display-only (icons, filters, dialog targets); the
-  // catalogs themselves are never filtered, so every skill stays listed.
+  // Hiding an agent is display-level (icons, filters, dialog targets); the
+  // catalogs stay complete. Views additionally drop skills whose exposing
+  // agents are all hidden (see isSkillHiddenByAgents).
 
   const toggleAgentVisibility = useCallback((id: string) => {
     setHiddenAgentIds((current) => {

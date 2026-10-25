@@ -6,6 +6,7 @@ import { Download, FolderOpen, RefreshCw, X } from "lucide-react";
 import { useApp } from "../context/AppContext";
 import * as api from "../lib/api";
 import type { SkillView } from "../lib/api";
+import { isSkillHiddenByAgents } from "../lib/agentVisibility";
 import { SkillCard } from "../components/SkillCard";
 import { SkillDetail } from "../components/SkillDetail";
 import { InstallDialog } from "../components/InstallDialog";
@@ -24,6 +25,7 @@ export function ProjectView() {
     openProject,
     closeProject,
     refreshProject,
+    hiddenAgentIds,
   } = useApp();
   const [query, setQuery] = useState("");
   const [installOpen, setInstallOpen] = useState(false);
@@ -38,6 +40,7 @@ export function ProjectView() {
 
   const skills = projectCatalog?.skills ?? [];
   const filtered = skills.filter((s) => {
+    if (isSkillHiddenByAgents(s.agents, hiddenAgentIds)) return false;
     const q = query.trim().toLowerCase();
     if (!q) return true;
     return (
