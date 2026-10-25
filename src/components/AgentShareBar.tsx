@@ -21,8 +21,8 @@ interface Row {
   locked: boolean;
 }
 
-/** Hover strip on a skill card: one icon per relevant agent (detected, or
- *  already seeing the skill) — colored when it has the skill, gray when not,
+/** Always-visible strip on a skill card: one icon per relevant agent (detected,
+ *  or already seeing the skill) — colored when it has the skill, gray when not,
  *  lock-badged when it reads the shared dir directly. One click shares the
  *  skill to that agent or removes its link; the "all" pill shares to every
  *  gray unlocked agent at once. */

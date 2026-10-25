@@ -126,15 +126,14 @@ describe("SkillCard", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it("stacks the chips and the share bar in the same slot", () => {
+  it("always shows the share bar, not just on hover", () => {
     act(() => {
       container = render();
     });
-    expect(container!.textContent).toContain("Claude Code");
     expect(container!.textContent).toContain("agentShareBar.all");
-    // The strip is only display:none until hover — both live in the DOM.
-    const grid = container!.querySelector(".grid")!;
-    expect(grid.children.length).toBe(2);
+    // No hover cross-fade slot anymore — the share bar is the only child.
+    expect(container!.querySelector(".grid")).toBeNull();
+    expect(container!.textContent).not.toContain("Claude Code");
   });
 
   it("keeps plain chips in selection mode and toggles selection instead", () => {

@@ -34,7 +34,7 @@ export function SkillCard({
     onOpen(skill);
   };
 
-  // The hover agent bar nests real <button>s, and interactive elements cannot
+  // The share bar nests real <button>s, and interactive elements cannot
   // nest inside a <button> — so the card itself is a div with button semantics.
   // Key handling only fires for focus on the card itself, never its children.
   return (
@@ -50,7 +50,7 @@ export function SkillCard({
         }
       }}
       className={cn(
-        "app-panel group relative flex h-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors outline-none",
+        "app-panel relative flex h-full cursor-pointer flex-col gap-3 p-4 text-left transition-colors outline-none",
         selected ? "border-accent-border bg-surface-active" : "hover:bg-surface-hover",
       )}
     >
@@ -86,20 +86,12 @@ export function SkillCard({
       </p>
 
       <div className="mt-auto flex flex-col gap-2">
-        {/* On hover the chips cross-fade into the share bar in the same slot
-            (one grid cell, no layout shift). Selection mode and broken links
+        {/* The share bar is always visible. Selection mode and broken links
             keep the plain chips — no sharing there. */}
         {selectionMode || skill.status === "broken-link" ? (
           <AgentChips agents={skill.agents} max={4} />
         ) : (
-          <div className="grid">
-            <div className="col-start-1 row-start-1 group-hover:invisible group-focus-within:invisible">
-              <AgentChips agents={skill.agents} max={4} />
-            </div>
-            <div className="col-start-1 row-start-1 hidden items-center group-hover:flex group-focus-within:flex">
-              <AgentShareBar skill={skill} scope={scope} />
-            </div>
-          </div>
+          <AgentShareBar skill={skill} scope={scope} />
         )}
         <div className="truncate text-[11px] text-faint">
           {skill.source ?? t("library.sourceUnknown")}
