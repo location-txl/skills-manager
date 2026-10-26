@@ -1,166 +1,155 @@
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
-import { Layers, CheckCircle2, Bot, Plus, Download, AlertTriangle } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router-dom";
+import {
+  CircleCheck,
+  CircleAlert,
+  Download,
+  Layers,
+  Bot,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react";
 import { useApp } from "../context/AppContext";
-import { AgentControlSetupCard } from "../components/AgentControlSetupCard";
+import { cn } from "../utils";
 
+/** Overview: runtime health, what's installed, where to go next. */
 export function Dashboard() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { tools, projects, managedSkills, openSkillDetailById } = useApp();
+  const {
+    runtime,
+    runtimeLoading,
+    globalCatalog,
+    agents,
+    project,
+    projectCatalog,
+    refreshAll,
+    refreshing,
+  } = useApp();
 
-  const enabledAgents = useMemo(
-    () => tools.filter((tool) => tool.installed && tool.enabled),
-    [tools]
-  );
-
-  const totalSkills = managedSkills.length;
-  const syncedSkills = useMemo(
-    () => managedSkills.filter((s) => s.targets.length > 0).length,
-    [managedSkills]
-  );
-
-  const divergedCount = useMemo(
-    () => projects.reduce((acc, p) => acc + p.sync_health.diverged, 0),
-    [projects]
-  );
-
-  const recentSkills = useMemo(
-    () => [...managedSkills].sort((a, b) => b.updated_at - a.updated_at).slice(0, 5),
-    [managedSkills]
-  );
-
-  const coverageLabel = totalSkills === 0 ? "0" : `${syncedSkills}/${totalSkills}`;
-  const syncCardIcon = divergedCount > 0 ? AlertTriangle : CheckCircle2;
-  const syncCardColor = divergedCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400";
-  const syncCardBg = divergedCount > 0 ? "bg-amber-500/[0.08]" : "bg-emerald-500/[0.08]";
+  const skills = globalCatalog?.skills ?? [];
+  const tracked = skills.filter((s) => s.isTrackedByVercel).length;
+  const detectedAgents = agents.filter((a) => a.detected);
+  const healthy = runtime !== null && !runtime.degraded;
 
   return (
-    <div className="app-page app-page-narrow">
-      <div className="app-page-header">
-        <h1 className="app-page-title">{t("dashboard.greeting")}</h1>
-        <p className="app-page-subtitle text-tertiary">
-          {t("dashboard.summary", {
-            skills: totalSkills,
-            agents: enabledAgents.length,
-            projects: projects.length,
-          })}
-        </p>
-      </div>
-
-      <AgentControlSetupCard />
-
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3.5">
-        {[
-          {
-            title: t("dashboard.librarySkills"),
-            value: String(totalSkills),
-            icon: Layers,
-            color: "text-accent-light",
-            bg: "bg-accent-bg",
-          },
-          {
-            title: t("dashboard.syncCoverage"),
-            value: coverageLabel,
-            icon: syncCardIcon,
-            color: syncCardColor,
-            bg: syncCardBg,
-          },
-          {
-            title: t("dashboard.connectedAgents"),
-            value: String(enabledAgents.length),
-            icon: Bot,
-            color: "text-sky-600 dark:text-sky-400",
-            bg: "bg-sky-500/[0.08]",
-          },
-        ].map((stat, i) => {
-          const Icon = stat.icon;
-          return (
-            <div
-              key={i}
-              className="app-panel flex items-center justify-between px-4 py-4 transition-colors hover:border-border"
-            >
-              <div>
-                <p className="app-section-title mb-1">
-                  {stat.title}
-                </p>
-                <h3 className="text-[17px] font-semibold text-primary leading-none">{stat.value}</h3>
-              </div>
-              <div className={`p-2 rounded-md ${stat.bg} ${stat.color} border border-border-subtle`}>
-                <Icon className="w-4 h-4" />
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => navigate("/install?tab=local")}
-          className="app-button-primary flex-1"
-        >
-          <Download className="w-4 h-4" />
-          {t("dashboard.scanImport")}
-        </button>
-        <button
-          onClick={() => navigate("/install")}
-          className="app-button-secondary flex-1"
-        >
-          <Plus className="w-4 h-4 text-tertiary" />
-          {t("dashboard.installNew")}
-        </button>
-      </div>
-
-      {/* Recent skills */}
-      {recentSkills.length > 0 && (
+    <div className="app-page">
+      <div className="app-page-header flex items-start justify-between">
         <div>
-          <h2 className="app-section-title mb-2.5">
-            {t("dashboard.recentActivity")}
-          </h2>
-          <div className="app-panel overflow-hidden divide-y divide-border-subtle">
-            {recentSkills.map((skill) => (
-              <div
-                key={skill.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => {
-                  openSkillDetailById(skill.id);
-                  navigate("/my-skills");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") {
-                    openSkillDetailById(skill.id);
-                    navigate("/my-skills");
-                  }
-                }}
-                className="flex items-center justify-between px-3.5 py-2.5 hover:bg-surface-hover transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-md flex items-center justify-center text-[13px] font-semibold bg-accent-bg text-accent-light shrink-0">
-                    {skill.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h4 className="text-[13px] text-secondary font-medium flex items-center gap-1.5">
-                      {skill.name}
-                      <span className="text-[11px] px-1.5 py-px rounded-full bg-surface-hover text-muted border border-border font-normal">
-                        {skill.source_type}
-                      </span>
-                    </h4>
-                    <p className="text-[13px] text-muted mt-px">
-                      {skill.targets.length > 0
-                        ? `${t("dashboard.synced")} → ${skill.targets.map((target) => target.tool).join(", ")}`
-                        : t("dashboard.notSynced")}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <h1 className="app-page-title">{t("dashboard.title")}</h1>
+          <p className="app-page-subtitle">{t("dashboard.subtitle")}</p>
+        </div>
+        <button
+          onClick={refreshAll}
+          disabled={refreshing}
+          className="app-toolbar-button app-toolbar-button-secondary"
+        >
+          <RefreshCw className={cn("h-3.5 w-3.5", refreshing && "animate-spin")} />
+          {t("common.refresh")}
+        </button>
+      </div>
+
+      {/* Runtime health */}
+      <Link
+        to="/settings"
+        className="app-panel flex items-center gap-3 p-4 transition-colors hover:bg-surface-hover"
+      >
+        {runtimeLoading ? (
+          <CircleAlert className="h-5 w-5 shrink-0 text-muted" />
+        ) : healthy ? (
+          <CircleCheck className="h-5 w-5 shrink-0 text-emerald-500" />
+        ) : (
+          <CircleAlert className="h-5 w-5 shrink-0 text-amber-500" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-medium text-primary">
+            {runtimeLoading
+              ? t("dashboard.checkingRuntime")
+              : healthy
+                ? t("dashboard.runtimeOk", { version: runtime?.cliVersion ?? "?" })
+                : t("dashboard.runtimeDegraded")}
+          </div>
+          <div className="mt-0.5 truncate text-[12px] text-muted">
+            {t("dashboard.runtimeDetail", {
+              node: runtime?.nodeVersion ?? "—",
+              cli: runtime?.cliVersion ?? "—",
+            })}
           </div>
         </div>
-      )}
+      </Link>
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          icon={<Layers className="h-4 w-4" />}
+          label={t("dashboard.globalSkills")}
+          value={skills.length}
+          sub={t("dashboard.trackedCount", { count: tracked })}
+          to="/library"
+        />
+        <StatCard
+          icon={<Bot className="h-4 w-4" />}
+          label={t("dashboard.detectedAgents")}
+          value={detectedAgents.length}
+          sub={t("dashboard.agentsSub")}
+          to="/agents"
+        />
+        <StatCard
+          icon={<FolderOpen className="h-4 w-4" />}
+          label={t("dashboard.project")}
+          value={project ? (projectCatalog?.skills.length ?? 0) : "—"}
+          sub={project ? project.name : t("dashboard.noProject")}
+          to="/project"
+        />
+        <StatCard
+          icon={<Download className="h-4 w-4" />}
+          label={t("dashboard.marketplace")}
+          value="·"
+          sub={t("dashboard.marketplaceSub")}
+          to="/marketplace"
+        />
+      </div>
+
+      {/* Diagnostics surfaced by the catalog */}
+      {globalCatalog && globalCatalog.diagnostics.length > 0 ? (
+        <div className="app-panel-muted p-4">
+          <div className="app-section-title mb-2">{t("dashboard.diagnostics")}</div>
+          <ul className="space-y-1.5">
+            {globalCatalog.diagnostics.slice(0, 5).map((d, i) => (
+              <li key={i} className="text-[12px] leading-5 text-tertiary">
+                · {d}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+function StatCard({
+  icon,
+  label,
+  value,
+  sub,
+  to,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | string;
+  sub: string;
+  to: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="app-panel flex flex-col gap-2 p-4 transition-colors hover:bg-surface-hover"
+    >
+      <div className="flex items-center gap-2 text-muted">
+        {icon}
+        <span className="text-[12px] font-medium">{label}</span>
+      </div>
+      <div className="text-[17px] font-semibold leading-7 text-primary">{value}</div>
+      <div className="truncate text-[12px] text-muted">{sub}</div>
+    </Link>
   );
 }

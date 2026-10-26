@@ -62,15 +62,34 @@ const AGENT_ICON_FILES: Record<string, string> = {
 // they would double-invert.
 const DARK_INVERT_ICON_KEYS = new Set<string>(["codex", "roo_code"]);
 
+// Agent ids (the CLI's hyphenated keys) whose icon key is not the plain
+// hyphen→underscore form of the id. Everything else resolves by substitution
+// (claude-code → claude_code, gemini-cli → gemini_cli, …).
+const AGENT_ID_ALIASES: Record<string, string> = {
+  kilo: "kilo_code",
+  roo: "roo_code",
+  "hermes-agent": "hermes",
+  "iflow-cli": "iflow",
+  "kimi-code-cli": "kimi",
+  "kiro-cli": "kiro",
+  "qoder-cn": "qoder",
+};
+
+/** Agent id (hyphenated CLI key) → icon key (underscored map key). */
+export function resolveAgentIconKey(agentIdOrKey: string): string {
+  if (AGENT_ICON_FILES[agentIdOrKey]) return agentIdOrKey;
+  return AGENT_ID_ALIASES[agentIdOrKey] ?? agentIdOrKey.replace(/-/g, "_");
+}
+
 export function getAgentIconSrc(agentKey: string): string | null {
-  const file = AGENT_ICON_FILES[agentKey];
+  const file = AGENT_ICON_FILES[resolveAgentIconKey(agentKey)];
   return file ? `/agent-icons/${file}` : null;
 }
 
 export function agentIconNeedsDarkInvert(agentKey: string): boolean {
-  return DARK_INVERT_ICON_KEYS.has(agentKey);
+  return DARK_INVERT_ICON_KEYS.has(resolveAgentIconKey(agentKey));
 }
 
 export function hasAgentIcon(agentKey: string): boolean {
-  return Boolean(AGENT_ICON_FILES[agentKey]);
+  return Boolean(AGENT_ICON_FILES[resolveAgentIconKey(agentKey)]);
 }

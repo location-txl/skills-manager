@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-10-25
+
+### Release Overview
+- **Destructive rewrite around the Vercel skills CLI.** The app is now a thin desktop front end for the open [`skills`](https://github.com/vercel-labs/skills) CLI: it has no database of its own, and every install, update and uninstall is executed by the CLI. Uninstalling this app leaves every installed skill fully usable by the CLI and all compatible agents. Old data under `~/.skills-manager` is not read, migrated or deleted.
+
+### Removed
+- The SQLite store, private central repository, presets, tags, per-skill agent toggles, the bundled `skills-manager-cli` binary and its bridging, Git backup/restore/merge, multi-device sync, the automatic skill updater, and every UI surface for them. The in-app app-updater was also removed: this fork no longer ships updater artifacts or the upstream endpoint.
+- The old CLI-based install/update engine. Sources are installed via `skills add`, updated via `skills update`, removed via `skills remove` — always with explicit scope and agent selection, `-y` only after confirmation.
+
+### Added
+- **Library**: all global skills (shared `~/.agents/skills` plus agent directories) deduplicated, with source metadata read from the CLI's lock file, per-agent visibility (shared/symlink/copy/native), batch uninstall, and safe SKILL.md viewing.
+- **Agents**: the CLI's 79-agent map with detection and per-agent skill visibility, including the shared-directory visibility caveat.
+- **Project**: one folder per session with project-scope install/update/uninstall; no project registry.
+- **Marketplace**: skills.sh search with explicit scope + agent install dialog.
+- **Diagnostics**: Node/CLI paths and versions, lock-file location, runtime notes, last CLI error, panic log and log excerpt.
+- Read-only degraded mode when the CLI is missing, plus a write gate requiring `skills >= 1.7.0`; contract tests pinned to `skills@1.7.4` running real flows against isolated HOMEs.
+
+### Changed
+- Requirements: Node.js >= 22 and `npm install -g skills@^1.7.0`. Theme, language, text size, close behavior and the CLI path override are pure UI preferences (localStorage), no backend settings store.
+- Legacy `~/.skills-manager` data is fenced off and ignored; nothing under it is touched.
+
 ## [1.43.0] - 2026-10-21
 
 ### Release Overview

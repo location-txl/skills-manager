@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import * as api from "../lib/tauri";
 
 export type Theme = "light" | "dark" | "system";
 export type ResolvedTheme = "light" | "dark";
@@ -46,20 +45,10 @@ export function useTheme() {
     return () => mq.removeEventListener("change", handler);
   }, [theme]);
 
-  // Load from Tauri settings on mount
-  useEffect(() => {
-    api.getSettings("theme").then((v) => {
-      if (v === "light" || v === "dark" || v === "system") {
-        setThemeState(v);
-        localStorage.setItem(STORAGE_KEY, v);
-      }
-    });
-  }, []);
-
+  // Theme is a pure UI preference: localStorage only, no backend store.
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
     localStorage.setItem(STORAGE_KEY, next);
-    api.setSettings("theme", next);
   }, []);
 
   return { theme, setTheme, resolvedTheme };

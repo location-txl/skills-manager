@@ -1,8 +1,8 @@
-import { BookOpen, FolderTree, Globe, Layers3, Map, RefreshCw, Settings2, Sparkles, X } from "lucide-react";
+import { BookOpen, Bot, Download, FolderTree, Globe, Layers3, Map, Settings2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useApp } from "../context/AppContext";
 
-const GUIDE_ICONS = [Map, Layers3, BookOpen, Sparkles, Globe, FolderTree, RefreshCw, Settings2];
+const GUIDE_ICONS = [Map, Layers3, Bot, FolderTree, Download, Globe, Settings2, BookOpen];
 
 export function HelpDialog() {
   const { t } = useTranslation();
@@ -34,7 +34,7 @@ export function HelpDialog() {
         </div>
 
         <div className="max-h-[min(72vh,720px)] space-y-3 overflow-y-auto px-5 py-5">
-          {(["workflows", "presets", "install", "sync", "global", "projects", "backup", "settings"] as const).map((key, index) => {
+          {(["overview", "library", "agents", "projects", "install", "scope", "settings", "ownership"] as const).map((key, index) => {
             const Icon = GUIDE_ICONS[index];
             return (
               <div

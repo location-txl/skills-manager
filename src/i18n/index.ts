@@ -1,6 +1,5 @@
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
-import { getSettings } from "../lib/tauri";
 import zh from "./zh.json";
 import zhTW from "./zh-TW.json";
 import en from "./en.json";
@@ -52,12 +51,8 @@ function detectLanguage(): SupportedLanguage {
 }
 
 export const i18nReady = (async () => {
-  const storedLanguage = getStoredLanguage();
-  const savedLanguage = await getSettings("language").catch(() => null);
-  const lng = isSupportedLanguage(savedLanguage)
-    ? savedLanguage
-    : storedLanguage || detectLanguage();
-
+  // Language is a pure UI preference: localStorage only.
+  const lng = getStoredLanguage() ?? detectLanguage();
   localStorage.setItem(LANGUAGE_STORAGE_KEY, lng);
 
   await i18n.use(initReactI18next).init({
